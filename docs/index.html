@@ -22,6 +22,7 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
 
         body {
             font-family: 'JetBrains Mono', 'Consolas', monospace;
@@ -62,7 +63,8 @@
             font-size: 11px;
             line-height: 1.2;
             color: var(--dim);
-            letter-spacing: 1px;
+            letter-spacing: 0;
+            white-space: pre;
         }
 
         nav .logo-ascii .bright { color: var(--accent); }
@@ -89,13 +91,14 @@
             color: var(--dim);
             text-decoration: none;
             font-size: 12px;
-            transition: color 0.15s;
+            transition: color 0.15s, background 0.15s, border-left-color 0.15s;
             border-left: 2px solid transparent;
         }
 
         nav a:hover {
             color: var(--accent);
             border-left-color: var(--faint);
+            background: rgba(255,255,255,0.02);
         }
 
         nav a.active {
