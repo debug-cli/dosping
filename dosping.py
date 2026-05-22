@@ -694,7 +694,7 @@ class TestPanel(Vertical):
         self.flooder: Flooder | None = None
         self.ping_process: asyncio.subprocess.Process | None = None
         self.start_time: float = 0.0
-        self.is_running: bool = True
+        self._is_running: bool = True
         self.icmp_enabled: bool = True
         self.tcp_enabled: bool = True
 
@@ -932,7 +932,7 @@ class TestPanel(Vertical):
         )
 
         scanner.show_complete()
-        self.is_running = False
+        self._is_running = False
 
         # ── HTTP health check ────────────────────────────────
         self._log_flood("")
@@ -972,7 +972,7 @@ class TestPanel(Vertical):
             self.query_one(".attack-scanner", KITTScanner).halt()
         except Exception:
             pass
-        self.is_running = False
+        self._is_running = False
 
     def reset(self) -> None:
         """Stop everything, clear logs, restart."""
@@ -991,7 +991,7 @@ class TestPanel(Vertical):
 
         self.flooder = None
         self.start_time = time.time()
-        self.is_running = True
+        self._is_running = True
         self._flood_lines.clear()
         self._ping_lines.clear()
 
@@ -1253,7 +1253,7 @@ class SessionScreen(Screen):
                 else f" ({','.join(map(str, panel.ports))})"
             )
 
-            if panel.is_running:
+            if panel._is_running:
                 new_label = f"{char} {panel.target}{port_str}"
             else:
                 new_label = f"✓ {panel.target}{port_str}"
