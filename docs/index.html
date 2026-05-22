@@ -254,6 +254,38 @@
             color: var(--text);
         }
 
+        /* ── COPY BUTTON ─────────────────────────── */
+        pre .copy-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--dim);
+            font-family: inherit;
+            font-size: 10px;
+            letter-spacing: 1px;
+            padding: 3px 8px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+            z-index: 1;
+        }
+
+        pre:hover .copy-btn {
+            opacity: 1;
+        }
+
+        pre .copy-btn:hover {
+            color: var(--accent);
+            border-color: var(--dim);
+        }
+
+        pre .copy-btn.copied {
+            color: var(--accent);
+            opacity: 1;
+        }
+
         /* ── TABLES ──────────────────────────────── */
         table {
             width: 100%;
@@ -932,6 +964,25 @@ CONNECTIVITY LOG:
                     link.classList.add('active');
                 }
             });
+        });
+
+        document.querySelectorAll('pre').forEach(block => {
+            const btn = document.createElement('button');
+            btn.className = 'copy-btn';
+            btn.textContent = 'COPY';
+            btn.addEventListener('click', () => {
+                const code = block.querySelector('code');
+                const text = (code || block).textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    btn.textContent = 'COPIED';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = 'COPY';
+                        btn.classList.remove('copied');
+                    }, 1500);
+                });
+            });
+            block.appendChild(btn);
         });
     </script>
 </body>
