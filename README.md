@@ -9,7 +9,7 @@
 ░▒▓ |____/  \___/ |____/| .__/ |_||_| |_| \__, |       ▓▒░
 ░▒▓                     |_|              |___/        ▓▒░
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸
-              ⚡ Network Stress Tester v2.0 ⚡
+              ⚡ Network Stress Tester ⚡
 ```
 
 Made by saint. Made for a close friend.
