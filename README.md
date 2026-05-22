@@ -9,7 +9,7 @@
 ░▒▓ |____/  \___/ |____/| .__/ |_||_| |_| \__, |       ▓▒░
 ░▒▓                     |_|              |___/        ▓▒░
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸
-              ⚡ Network Stress Tester v2.0 ⚡
+              ⚡ Network Stress Tester ⚡
 ```
 
 Made by saint. Made for a close friend.
@@ -22,7 +22,7 @@ Made by saint. Made for a close friend.
 
 A terminal-based network stress testing tool. Floods a target with concurrent TCP connections while monitoring connectivity through ICMP ping and TCP port probes in real time. Three-panel split layout. Multi-tab sessions. Built with Python, Textual, and asyncio.
 
-📖 **[Full documentation →](docs/index.html)**
+📖 **[Full documentation →](https://dosping-docs.vercel.app)**
 
 ---
 
