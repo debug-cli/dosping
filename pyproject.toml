@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dosping"
+version = "2.0.0"
+description = "Network Stress Testing TUI"
+requires-python = ">=3.12"
+dependencies = [
+    "textual>=0.40.0",
+    "rich>=13.0.0",
+    "requests>=2.28.0",
+]
+
+[project.scripts]
+dosping = "dosping:main"
+
+[tool.setuptools]
+py-modules = ["dosping", "flooder"]

@@ -59,7 +59,7 @@ echo -e "  ${DIM}─────────────────────
 echo ""
 
 # ── Step 1: Check Python ────────────────────────────────
-echo -e "  ${BOLD}[1/4]${RESET} Checking Python..."
+echo -e "  ${BOLD}[1/5]${RESET} Checking Python..."
 
 PYTHON=""
 for cmd in python3 python; do
@@ -80,7 +80,7 @@ echo -e "  ${GREEN}✓${RESET} Found $PYVER"
 echo ""
 
 # ── Step 2: Create venv ─────────────────────────────────
-echo -e "  ${BOLD}[2/4]${RESET} Virtual environment..."
+echo -e "  ${BOLD}[2/5]${RESET} Virtual environment..."
 
 if [ -d ".venv" ]; then
     echo -e "  ${GREEN}✓${RESET} .venv already exists"
@@ -91,21 +91,55 @@ fi
 echo ""
 
 # ── Step 3: Install deps ────────────────────────────────
-echo -e "  ${BOLD}[3/4]${RESET} Dependencies..."
+echo -e "  ${BOLD}[3/5]${RESET} Installing DOSping..."
 
-.venv/bin/pip install -r requirements.txt --quiet &
-spin $! "Installing packages"
+.venv/bin/pip install -e . --quiet &
+spin $! "Installing package + dependencies"
 echo ""
 
-# ── Step 4: Launch ───────────────────────────────────────
-echo -e "  ${BOLD}[4/4]${RESET} Launching DOSping..."
+# ── Step 4: System-wide command ──────────────────────────
+echo -e "  ${BOLD}[4/5]${RESET} Registering 'dosping' command..."
+
+DOSPING_BIN="$(cd .venv/bin && pwd)/dosping"
+INSTALL_DIR=""
+
+if [ -d "$HOME/.local/bin" ]; then
+    INSTALL_DIR="$HOME/.local/bin"
+elif [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+    INSTALL_DIR="/usr/local/bin"
+else
+    mkdir -p "$HOME/.local/bin"
+    INSTALL_DIR="$HOME/.local/bin"
+fi
+
+ln -sf "$DOSPING_BIN" "$INSTALL_DIR/dosping" 2>/dev/null
+
+if [ $? -eq 0 ]; then
+    echo -e "  ${GREEN}✓${RESET} Linked dosping → $INSTALL_DIR/dosping"
+
+    # Check if INSTALL_DIR is in PATH
+    case ":$PATH:" in
+        *":$INSTALL_DIR:"*) ;;
+        *)
+            echo -e "  ${AMBER}!${RESET} $INSTALL_DIR is not in your PATH."
+            echo -e "  ${DIM}  Add this to your shell profile:${RESET}"
+            echo -e "  ${DIM}  export PATH=\"$INSTALL_DIR:\$PATH\"${RESET}"
+            ;;
+    esac
+else
+    echo -e "  ${AMBER}!${RESET} Could not symlink. You can still run: .venv/bin/dosping"
+fi
+echo ""
+
+# ── Step 5: Launch ───────────────────────────────────────
+echo -e "  ${BOLD}[5/5]${RESET} Launching DOSping..."
 echo ""
 echo -e "  ${DIM}════════════════════════════════════════${RESET}"
 echo -e "  ${DIM}Starting TUI. Press Ctrl+C to abort.${RESET}"
 echo -e "  ${DIM}════════════════════════════════════════${RESET}"
 echo ""
 
-.venv/bin/python dosping.py
+.venv/bin/dosping
 
 echo ""
 echo -e "  ${DIM}DOSping exited.${RESET}"

@@ -1596,9 +1596,15 @@ def print_session_summary(stats: dict) -> None:
 
 
 # ═════════════════════════════════════════════════════════════
-if __name__ == "__main__":
+
+def main():
+    """Entry point for the ``dosping`` console command."""
     app = DOSPingApp()
     app.run()
 
     if app.session_stats:
         print_session_summary(app.session_stats)
+
+
+if __name__ == "__main__":
+    main()
