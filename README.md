@@ -15,6 +15,7 @@
 Made by saint. Made for a close friend.
 
 > **FOR PENETRATION TESTING AND EDUCATIONAL PURPOSES ONLY.** Unauthorized use against systems you don't own or have permission to test is illegal. You accept full responsibility. Use at your own risk.
+Always use a VPN when unauthorized, watch out for honeypots.
 
 ---
 
