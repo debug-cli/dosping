@@ -1,9 +1,31 @@
 @echo off
-setlocal enabledelayedexpansion
-title DOSping Setup
-color 0A
+setlocal EnableDelayedExpansion
+title DOSping v3.5 Setup
 
-:: ── Auto-clone if run outside the repo ──────────────────────
+:: ── ANSI color support ─────────────────────────────────────
+::    Works on Windows 10 1903+ (PowerShell provides ESC char)
+::    Falls back gracefully to plain ASCII on older terminals.
+set "E="
+for /f "delims=" %%E in ('powershell -NoProfile -Command "[char]27" 2^>nul') do set "E=%%E"
+
+if defined E (
+    set "GRN=!E![32m"
+    set "AMB=!E![33m"
+    set "RED=!E![31m"
+    set "DIM=!E![90m"
+    set "BLD=!E![1m"
+    set "RST=!E![0m"
+    set "CHK=!E![32m ^v!E![0m"
+    set "ERR=!E![31m ^x!E![0m"
+    set "RUN=!E![33m ^.!E![0m"
+    set "WRN=!E![33m ^!!E![0m"
+) else (
+    set "GRN=" & set "AMB=" & set "RED="
+    set "DIM=" & set "BLD=" & set "RST="
+    set "CHK= [OK] " & set "ERR=[FAIL]" & set "RUN= [ ] " & set "WRN= [!]  "
+)
+
+:: ── Auto-clone if run outside the repo ────────────────────
 if not exist requirements.txt (
     echo.
     echo   Cloning DOSping from GitHub...
@@ -13,108 +35,92 @@ if not exist requirements.txt (
     exit /b
 )
 
+:: ── Header ─────────────────────────────────────────────────
+cls
 echo.
-echo  ========================================
-echo   DOSping v2.0 - Quick Start Installer
-echo  ========================================
-echo.
-echo   For penetration testing / education only.
-echo   Use at your own risk.
-echo.
-echo  ----------------------------------------
+echo   !BLD!!AMB!DOSping v3.5!RST!   !DIM!Network Stress Tester!RST!
+echo   !DIM!────────────────────────────────────────────!RST!
+echo   !DIM!For penetration testing / education only.!RST!
+echo   !DIM!Use at your own risk.!RST!
 echo.
 
-:: ── Check Python ────────────────────────────────────────────
-echo  [1/5] Checking Python...
+:: ── [1/5] Python ───────────────────────────────────────────
+echo   !BLD![1/5]!RST! Checking Python...
 python --version >nul 2>&1
 if errorlevel 1 (
+    echo   !ERR! Python not found in PATH.
     echo.
-    echo   ERROR: Python not found in PATH.
-    echo   Install Python 3.12+ from https://python.org
-    echo   Make sure "Add to PATH" is checked during install.
+    echo         Install Python 3.12+ from https://python.org
+    echo         Tip: check "Add Python to PATH" during setup.
     echo.
     pause
     exit /b 1
 )
-
 for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
-echo   Found Python %PYVER%
+echo   !CHK! Python !PYVER!
 echo.
 
-:: ── Create virtual environment ──────────────────────────────
-echo  [2/5] Creating virtual environment...
+:: ── [2/5] Virtual environment ──────────────────────────────
+echo   !BLD![2/5]!RST! Virtual environment...
 if exist .venv (
-    echo   .venv already exists, skipping.
+    echo   !CHK! .venv already exists
 ) else (
+    echo   !RUN! Creating .venv...
     python -m venv .venv
     if errorlevel 1 (
-        echo   ERROR: Failed to create virtual environment.
-        pause
-        exit /b 1
+        echo   !ERR! Failed to create virtual environment.
+        pause & exit /b 1
     )
-    echo   Created .venv
+    echo   !CHK! Created .venv
 )
 echo.
 
-:: ── Install package + dependencies ──────────────────────────
-echo  [3/5] Installing DOSping...
+:: ── [3/5] Install ──────────────────────────────────────────
+echo   !BLD![3/5]!RST! Installing DOSping...
+echo   !RUN! Running pip install ^(this may take a moment^)...
 echo.
 .venv\Scripts\pip install -e . --quiet
 if errorlevel 1 (
-    echo.
-    echo   ERROR: pip install failed.
-    echo   Try running: .venv\Scripts\pip install -e .
-    pause
-    exit /b 1
+    echo   !ERR! pip install failed.
+    echo         Try manually: .venv\Scripts\pip install -e .
+    pause & exit /b 1
 )
-echo.
-echo   Package installed.
+echo   !CHK! DOSping installed
 echo.
 
-:: ── Register dosping command on PATH ────────────────────────
-echo  [4/5] Registering 'dosping' command...
-
+:: ── [4/5] PATH registration ────────────────────────────────
+echo   !BLD![4/5]!RST! Registering 'dosping' command...
 set "DOSPING_DIR=%LOCALAPPDATA%\dosping\bin"
-if not exist "%DOSPING_DIR%" mkdir "%DOSPING_DIR%"
+if not exist "!DOSPING_DIR!" mkdir "!DOSPING_DIR!"
+copy /Y ".venv\Scripts\dosping.exe" "!DOSPING_DIR!\dosping.exe" >nul 2>&1
 
-:: Copy the generated exe and its script into a stable directory
-copy /Y ".venv\Scripts\dosping.exe" "%DOSPING_DIR%\dosping.exe" >nul 2>&1
-
-:: Check if DOSPING_DIR is already in user PATH
-echo %PATH% | findstr /I /C:"%DOSPING_DIR%" >nul 2>&1
+echo %PATH% | findstr /I /C:"!DOSPING_DIR!" >nul 2>&1
 if errorlevel 1 (
-    :: Add to user PATH permanently via setx
     for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USERPATH=%%B"
     if defined USERPATH (
-        echo !USERPATH! | findstr /I /C:"%DOSPING_DIR%" >nul 2>&1
+        echo !USERPATH! | findstr /I /C:"!DOSPING_DIR!" >nul 2>&1
         if errorlevel 1 (
-            setx PATH "!USERPATH!;%DOSPING_DIR%" >nul 2>&1
+            setx PATH "!USERPATH!;!DOSPING_DIR!" >nul 2>&1
         )
     ) else (
-        setx PATH "%DOSPING_DIR%" >nul 2>&1
+        setx PATH "!DOSPING_DIR!" >nul 2>&1
     )
-    set "PATH=%PATH%;%DOSPING_DIR%"
-    echo   Added %DOSPING_DIR% to your PATH.
-    echo   Open a new terminal for the 'dosping' command to work.
+    set "PATH=%PATH%;!DOSPING_DIR!"
+    echo   !CHK! Added to PATH
+    echo   !WRN! Open a new terminal for the 'dosping' command to work globally.
 ) else (
-    echo   PATH already contains %DOSPING_DIR%
+    echo   !CHK! Already in PATH
 )
-
-:: Also copy the exe after any future update
-echo   dosping.exe copied to %DOSPING_DIR%
 echo.
 
-:: ── Launch ──────────────────────────────────────────────────
-echo  [5/5] Launching DOSping...
+:: ── [5/5] Launch ───────────────────────────────────────────
+echo   !BLD![5/5]!RST! Launching DOSping...
 echo.
-echo  ========================================
-echo   Starting TUI. Press Ctrl+C to abort.
-echo  ========================================
+echo   !DIM!Press Ctrl+C to abort.!RST!
 echo.
 
 .venv\Scripts\dosping.exe
 
 echo.
-echo  DOSping exited. Press any key to close.
+echo   !DIM!DOSping exited.!RST!
 pause >nul
-

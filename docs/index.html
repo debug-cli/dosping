@@ -1,433 +1,519 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOSping v2.0 — Documentation</title>
-    <meta name="description" content="DOSping network stress testing TUI. Complete documentation covering every feature, command, and configuration option.">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
-
-        :root {
-            --bg:      #0a0a0a;
-            --surface: #111111;
-            --panel:   #0d0d0d;
-            --accent:  #c0c0c0;
-            --text:    #999999;
-            --dim:     #555555;
-            --faint:   #333333;
-            --border:  #252525;
-            --white:   #d8d8d8;
-            --warn:    #888888;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
-
-        body {
-            font-family: 'JetBrains Mono', 'Consolas', monospace;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.8;
-            font-size: 13px;
-        }
-
-        ::selection {
-            background: #333;
-            color: #eee;
-        }
-
-        .wrapper { display: flex; min-height: 100vh; }
-
-        /* ── SIDEBAR ─────────────────────────────── */
-        nav {
-            position: fixed;
-            top: 0; left: 0;
-            width: 240px;
-            height: 100vh;
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            padding: 0;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-
-        nav .logo-box {
-            padding: 20px 0 16px;
-            text-align: center;
-            border-bottom: 1px solid var(--border);
-        }
-
-        nav .logo-ascii {
-            font-size: 11px;
-            line-height: 1.2;
-            color: var(--dim);
-            letter-spacing: 0;
-            white-space: pre;
-        }
-
-        nav .logo-ascii .bright { color: var(--accent); }
-
-        nav .logo-ver {
-            font-size: 10px;
-            color: var(--faint);
-            margin-top: 4px;
-            letter-spacing: 3px;
-        }
-
-        nav .section-label {
-            display: block;
-            padding: 14px 20px 4px;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            color: var(--faint);
-        }
-
-        nav a {
-            display: block;
-            padding: 4px 20px 4px 24px;
-            color: var(--dim);
-            text-decoration: none;
-            font-size: 12px;
-            transition: color 0.15s, background 0.15s, border-left-color 0.15s;
-            border-left: 2px solid transparent;
-        }
-
-        nav a:hover {
-            color: var(--accent);
-            border-left-color: var(--faint);
-            background: rgba(255,255,255,0.02);
-        }
-
-        nav a.active {
-            color: var(--white);
-            border-left-color: var(--accent);
-        }
-
-        nav .nav-footer {
-            margin-top: auto;
-            padding: 12px 20px;
-            border-top: 1px solid var(--border);
-            font-size: 10px;
-            color: var(--faint);
-            text-align: center;
-        }
-
-        /* ── MAIN ────────────────────────────────── */
-        main {
-            margin-left: 240px;
-            padding: 40px 56px 80px;
-            max-width: 880px;
-        }
-
-        /* ── HEADINGS ────────────────────────────── */
-        h2 {
-            color: var(--accent);
-            font-size: 13px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            margin: 56px 0 12px;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        h2::before {
-            content: '> ';
-            color: var(--faint);
-        }
-
-        h2:first-of-type { margin-top: 0; }
-
-        h3 {
-            color: var(--dim);
-            font-size: 12px;
-            font-weight: 500;
-            margin: 28px 0 8px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        h3::before {
-            content: '$ ';
-            color: var(--faint);
-        }
-
-        h4 {
-            color: var(--text);
-            font-size: 12px;
-            font-weight: 400;
-            margin: 20px 0 6px;
-        }
-
-        p { margin: 6px 0 14px; }
-        a { color: var(--dim); text-decoration: underline; text-underline-offset: 3px; }
-        a:hover { color: var(--accent); }
-
-        strong { color: var(--accent); font-weight: 500; }
-
-        /* ── CALLOUT BOXES ───────────────────────── */
-        .warning {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-left: 3px solid var(--warn);
-            padding: 14px 18px;
-            margin: 20px 0;
-        }
-
-        .warning::before {
-            content: '! WARNING';
-            display: block;
-            font-size: 10px;
-            letter-spacing: 2px;
-            color: var(--warn);
-            margin-bottom: 8px;
-        }
-
-        .info {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-left: 3px solid var(--dim);
-            padding: 14px 18px;
-            margin: 20px 0;
-        }
-
-        .info::before {
-            content: 'i INFO';
-            display: block;
-            font-size: 10px;
-            letter-spacing: 2px;
-            color: var(--dim);
-            margin-bottom: 8px;
-        }
-
-        .note {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-left: 3px solid var(--accent);
-            padding: 14px 18px;
-            margin: 20px 0;
-        }
-
-        .note::before {
-            content: '* NOTE';
-            display: block;
-            font-size: 10px;
-            letter-spacing: 2px;
-            color: var(--accent);
-            margin-bottom: 8px;
-        }
-
-        /* ── CODE ────────────────────────────────── */
-        code {
-            font-family: inherit;
-            background: var(--panel);
-            padding: 1px 5px;
-            border: 1px solid var(--border);
-            font-size: 12px;
-            color: var(--accent);
-        }
-
-        pre {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            padding: 14px 18px;
-            overflow-x: auto;
-            margin: 10px 0 18px;
-            position: relative;
-        }
-
-        pre::before {
-            content: '─';
-            position: absolute;
-            top: 0; left: 8px;
-            font-size: 10px;
-            color: var(--faint);
-        }
-
-        pre code {
-            background: none;
-            border: none;
-            padding: 0;
-            color: var(--text);
-        }
-
-        /* ── COPY BUTTON ─────────────────────────── */
-        pre .copy-btn {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            color: var(--dim);
-            font-family: inherit;
-            font-size: 10px;
-            letter-spacing: 1px;
-            padding: 3px 8px;
-            cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.15s, color 0.15s, border-color 0.15s;
-            z-index: 1;
-        }
-
-        pre:hover .copy-btn {
-            opacity: 1;
-        }
-
-        pre .copy-btn:hover {
-            color: var(--accent);
-            border-color: var(--dim);
-        }
-
-        pre .copy-btn.copied {
-            color: var(--accent);
-            opacity: 1;
-        }
-
-        /* ── TABLES ──────────────────────────────── */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0 22px;
-        }
-
-        th {
-            text-align: left;
-            padding: 6px 14px;
-            background: var(--surface);
-            color: var(--dim);
-            border-bottom: 1px solid var(--border);
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            font-weight: 500;
-        }
-
-        td {
-            padding: 5px 14px;
-            border-bottom: 1px solid var(--border);
-            font-size: 12px;
-        }
-
-        tr:hover td { background: #0f0f0f; }
-
-        /* ── LISTS ───────────────────────────────── */
-        ul, ol { padding-left: 20px; margin: 6px 0 14px; }
-        li { margin: 3px 0; }
-        li::marker { color: var(--faint); }
-
-        /* ── DIAGRAMS ────────────────────────────── */
-        .diagram {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            padding: 16px 20px;
-            margin: 14px 0 22px;
-            font-size: 12px;
-            color: var(--dim);
-            line-height: 1.4;
-            white-space: pre;
-            overflow-x: auto;
-        }
-
-        .diagram .hl { color: var(--accent); }
-        .diagram .gr { color: var(--dim); }
-
-        /* ── RESPONSIVE ──────────────────────────── */
-        @media (max-width: 768px) {
-            nav { display: none; }
-            main { margin-left: 0; padding: 20px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="wrapper">
-        <nav>
-            <div class="logo-box">
-                <div class="logo-ascii"><span class="bright">┌──────────────┐</span>
-<span class="bright">│</span>  <span class="bright">D</span>OS<span class="bright">p</span>ing     <span class="bright">│</span>
-<span class="bright">└──────────────┘</span></div>
-                <div class="logo-ver">v2.0 docs</div>
-            </div>
-
-            <span class="section-label">start</span>
-            <a href="#disclaimer">disclaimer</a>
-            <a href="#quickstart">quick start</a>
-            <a href="#manual-install">manual install</a>
-
-            <span class="section-label">concepts</span>
-            <a href="#overview">what is DOSping</a>
-            <a href="#architecture">architecture</a>
-            <a href="#screens">screen flow</a>
-
-            <span class="section-label">interface</span>
-            <a href="#splash">splash screen</a>
-            <a href="#setup">setup modal</a>
-            <a href="#flood-panel">flood panel</a>
-            <a href="#ping-panel">connectivity</a>
-            <a href="#stats-panel">stats panel</a>
-            <a href="#tabs">multi-tab</a>
-
-            <span class="section-label">tools</span>
-            <a href="#palette">command palette</a>
-            <a href="#shortcuts">shortcuts</a>
-            <a href="#export">log export</a>
-            <a href="#themes">themes</a>
-            <a href="#terminal">terminal</a>
-
-            <span class="section-label">engine</span>
-            <a href="#flooder">flood engine</a>
-            <a href="#icmp">icmp monitor</a>
-            <a href="#tcp">tcp probe</a>
-
-            <span class="section-label">reference</span>
-            <a href="#exit-summary">exit summary</a>
-            <a href="#files">project files</a>
-            <a href="#troubleshooting">troubleshooting</a>
-
-            <div class="nav-footer">pentest toolkit</div>
-        </nav>
-
-        <main>
-
-            <h2 id="disclaimer">Disclaimer</h2>
-
-            <div class="warning">
-                <strong>FOR PENETRATION TESTING AND EDUCATIONAL PURPOSES ONLY.</strong>
-                <p>DOSping is a network stress testing tool. Use it only on systems you own or have written authorization to test. Unauthorized use against third-party systems is illegal in most jurisdictions. You accept full responsibility for how you use this software. The developers assume no liability.</p>
-                <p><strong>USE AT YOUR OWN RISK.</strong></p>
-            </div>
-
-            <h2 id="quickstart">Quick Start</h2>
-
-            <p>No cloning needed. The setup scripts detect they are outside the repo, auto-clone from GitHub, install dependencies, and launch.</p>
-
-            <h3>Linux / macOS</h3>
-<pre><code>curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
-
-            <h3>Windows (PowerShell)</h3>
-<pre><code>irm https://raw.githubusercontent.com/debug-cli/dosping/main/setup.bat -OutFile setup.bat; .\setup.bat</code></pre>
-
-            <h3>Ubuntu / Debian</h3>
-<pre><code>sudo apt update && sudo apt install -y git python3 python3-pip python3-venv && curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
-
-            <h3>Arch Linux</h3>
-<pre><code>sudo pacman -Sy --noconfirm git python python-pip && curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
-
-            <h3>Termux</h3>
-<pre><code>pkg update -y && pkg install -y git python && curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
-
-            <h3>Windows CMD</h3>
-<pre><code>git clone https://github.com/debug-cli/dosping.git && cd dosping && setup.bat</code></pre>
-
-            <div class="note">
-                <strong>Requirements:</strong> Python 3.12+ and git. The setup scripts create a virtual environment in <code>.venv</code>, install all packages from <code>requirements.txt</code>, and launch <code>dosping.py</code> automatically.
-            </div>
-
-            <h2 id="manual-install">Manual Installation</h2>
-
-<pre><code>git clone https://github.com/debug-cli/dosping.git
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DOSping v3.5 — Documentation</title>
+        <meta
+            name="description"
+            content="DOSping network stress testing TUI. Complete documentation covering every feature, command, and configuration option."
+        />
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap");
+
+            :root {
+                --bg: #0a0a0a;
+                --surface: #111111;
+                --panel: #0d0d0d;
+                --accent: #c0c0c0;
+                --text: #999999;
+                --dim: #555555;
+                --faint: #333333;
+                --border: #252525;
+                --white: #d8d8d8;
+                --warn: #888888;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            html {
+                scroll-behavior: smooth;
+            }
+
+            body {
+                font-family: "JetBrains Mono", "Consolas", monospace;
+                background: var(--bg);
+                color: var(--text);
+                line-height: 1.8;
+                font-size: 13px;
+            }
+
+            ::selection {
+                background: #333;
+                color: #eee;
+            }
+
+            .wrapper {
+                display: flex;
+                min-height: 100vh;
+            }
+
+            /* ── SIDEBAR ─────────────────────────────── */
+            nav {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 240px;
+                height: 100vh;
+                background: var(--surface);
+                border-right: 1px solid var(--border);
+                padding: 0;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                z-index: 10;
+            }
+
+            nav .logo-box {
+                padding: 20px 0 16px;
+                text-align: center;
+                border-bottom: 1px solid var(--border);
+            }
+
+            nav .logo-ascii {
+                font-size: 11px;
+                line-height: 1.2;
+                color: var(--dim);
+                letter-spacing: 0;
+                white-space: pre;
+            }
+
+            nav .logo-ascii .bright {
+                color: var(--accent);
+            }
+
+            nav .logo-ver {
+                font-size: 10px;
+                color: var(--faint);
+                margin-top: 4px;
+                letter-spacing: 3px;
+            }
+
+            nav .section-label {
+                display: block;
+                padding: 14px 20px 4px;
+                font-size: 9px;
+                text-transform: uppercase;
+                letter-spacing: 3px;
+                color: var(--faint);
+            }
+
+            nav a {
+                display: block;
+                padding: 4px 20px 4px 24px;
+                color: var(--dim);
+                text-decoration: none;
+                font-size: 12px;
+                transition:
+                    color 0.15s,
+                    background 0.15s,
+                    border-left-color 0.15s;
+                border-left: 2px solid transparent;
+            }
+
+            nav a:hover {
+                color: var(--accent);
+                border-left-color: var(--faint);
+                background: rgba(255, 255, 255, 0.02);
+            }
+
+            nav a.active {
+                color: var(--white);
+                border-left-color: var(--accent);
+            }
+
+            nav .nav-footer {
+                margin-top: auto;
+                padding: 12px 20px;
+                border-top: 1px solid var(--border);
+                font-size: 10px;
+                color: var(--faint);
+                text-align: center;
+            }
+
+            /* ── MAIN ────────────────────────────────── */
+            main {
+                margin-left: 240px;
+                padding: 40px 56px 80px;
+                max-width: 880px;
+                overflow-x: auto;
+            }
+
+            /* ── HEADINGS ────────────────────────────── */
+            h2 {
+                color: var(--accent);
+                font-size: 13px;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 3px;
+                margin: 56px 0 12px;
+                padding: 8px 0;
+                border-bottom: 1px solid var(--border);
+            }
+
+            h2::before {
+                content: "> ";
+                color: var(--faint);
+            }
+
+            h2:first-of-type {
+                margin-top: 0;
+            }
+
+            h3 {
+                color: var(--dim);
+                font-size: 12px;
+                font-weight: 500;
+                margin: 28px 0 8px;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+            }
+
+            h3::before {
+                content: "$ ";
+                color: var(--faint);
+            }
+
+            h4 {
+                color: var(--text);
+                font-size: 12px;
+                font-weight: 400;
+                margin: 20px 0 6px;
+            }
+
+            p {
+                margin: 6px 0 14px;
+            }
+            a {
+                color: var(--dim);
+                text-decoration: underline;
+                text-underline-offset: 3px;
+            }
+            a:hover {
+                color: var(--accent);
+            }
+
+            strong {
+                color: var(--accent);
+                font-weight: 500;
+            }
+
+            /* ── CALLOUT BOXES ───────────────────────── */
+            .warning {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-left: 3px solid var(--warn);
+                padding: 14px 18px;
+                margin: 20px 0;
+            }
+
+            .warning::before {
+                content: "! WARNING";
+                display: block;
+                font-size: 10px;
+                letter-spacing: 2px;
+                color: var(--warn);
+                margin-bottom: 8px;
+            }
+
+            .info {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-left: 3px solid var(--dim);
+                padding: 14px 18px;
+                margin: 20px 0;
+            }
+
+            .info::before {
+                content: "i INFO";
+                display: block;
+                font-size: 10px;
+                letter-spacing: 2px;
+                color: var(--dim);
+                margin-bottom: 8px;
+            }
+
+            .note {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-left: 3px solid var(--accent);
+                padding: 14px 18px;
+                margin: 20px 0;
+            }
+
+            .note::before {
+                content: "* NOTE";
+                display: block;
+                font-size: 10px;
+                letter-spacing: 2px;
+                color: var(--accent);
+                margin-bottom: 8px;
+            }
+
+            /* ── CODE ────────────────────────────────── */
+            code {
+                font-family: inherit;
+                background: var(--panel);
+                padding: 1px 5px;
+                border: 1px solid var(--border);
+                font-size: 12px;
+                color: var(--accent);
+            }
+
+            pre {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                padding: 14px 18px;
+                overflow-x: auto;
+                margin: 10px 0 18px;
+                position: relative;
+            }
+
+            pre::before {
+                content: "─";
+                position: absolute;
+                top: 0;
+                left: 8px;
+                font-size: 10px;
+                color: var(--faint);
+            }
+
+            pre code {
+                background: none;
+                border: none;
+                padding: 0;
+                color: var(--text);
+            }
+
+            /* ── COPY BUTTON ─────────────────────────── */
+            pre .copy-btn {
+                position: absolute;
+                top: 6px;
+                right: 6px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                color: var(--dim);
+                font-family: inherit;
+                font-size: 10px;
+                letter-spacing: 1px;
+                padding: 3px 8px;
+                cursor: pointer;
+                opacity: 0;
+                transition:
+                    opacity 0.15s,
+                    color 0.15s,
+                    border-color 0.15s;
+                z-index: 1;
+            }
+
+            pre:hover .copy-btn {
+                opacity: 1;
+            }
+
+            pre .copy-btn:hover {
+                color: var(--accent);
+                border-color: var(--dim);
+            }
+
+            pre .copy-btn.copied {
+                color: var(--accent);
+                opacity: 1;
+            }
+
+            /* ── TABLES ──────────────────────────────── */
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0 22px;
+            }
+
+            th {
+                text-align: left;
+                padding: 6px 14px;
+                background: var(--surface);
+                color: var(--dim);
+                border-bottom: 1px solid var(--border);
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                font-weight: 500;
+            }
+
+            td {
+                padding: 5px 14px;
+                border-bottom: 1px solid var(--border);
+                font-size: 12px;
+            }
+
+            tr:hover td {
+                background: #0f0f0f;
+            }
+
+            /* ── LISTS ───────────────────────────────── */
+            ul,
+            ol {
+                padding-left: 20px;
+                margin: 6px 0 14px;
+            }
+            li {
+                margin: 3px 0;
+            }
+            li::marker {
+                color: var(--faint);
+            }
+
+            /* ── DIAGRAMS ────────────────────────────── */
+            .diagram {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                padding: 16px 20px;
+                margin: 14px 0 22px;
+                font-size: 12px;
+                color: var(--dim);
+                line-height: 1.4;
+                white-space: pre;
+                overflow-x: auto;
+            }
+
+            .diagram .hl {
+                color: var(--accent);
+            }
+            .diagram .gr {
+                color: var(--dim);
+            }
+
+            /* ── RESPONSIVE ──────────────────────────── */
+            @media (max-width: 768px) {
+                nav {
+                    display: none;
+                }
+                main {
+                    margin-left: 0;
+                    padding: 20px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrapper">
+            <nav>
+                <div class="logo-box">
+                    <div class="logo-ascii">
+                        <span class="bright">┌──────────────┐</span>
+                        <span class="bright">│</span>
+                        <span class="bright">D</span>OS<span class="bright"
+                            >p</span
+                        >ing <span class="bright">│</span>
+                        <span class="bright">└──────────────┘</span>
+                    </div>
+                    <div class="logo-ver">v3.5 docs</div>
+                </div>
+
+                <span class="section-label">start</span>
+                <a href="#disclaimer">disclaimer</a>
+                <a href="#quickstart">quick start</a>
+                <a href="#manual-install">manual install</a>
+
+                <span class="section-label">concepts</span>
+                <a href="#overview">what is DOSping</a>
+                <a href="#architecture">architecture</a>
+                <a href="#view-modes">view modes</a>
+                <a href="#screens">screen flow</a>
+
+                <span class="section-label">interface</span>
+                <a href="#splash">splash screen</a>
+                <a href="#setup">setup modal</a>
+                <a href="#flood-panel">flood panel</a>
+                <a href="#ping-panel">connectivity</a>
+                <a href="#stats-panel">stats panel</a>
+                <a href="#tabs">multi-tab</a>
+
+                <span class="section-label">home screen</span>
+                <a href="#home-screen">home screen</a>
+                <a href="#settings">settings</a>
+                <a href="#port-scanner">port scanner</a>
+                <a href="#scanner-engine">scanner engine</a>
+
+                <span class="section-label">tools</span>
+                <a href="#palette">command palette</a>
+                <a href="#shortcuts">shortcuts</a>
+                <a href="#export">log export</a>
+                <a href="#themes">themes</a>
+                <a href="#terminal">terminal</a>
+
+                <span class="section-label">engine</span>
+                <a href="#flooder">flood engine</a>
+                <a href="#icmp">icmp monitor</a>
+                <a href="#tcp">tcp probe</a>
+
+                <span class="section-label">reference</span>
+                <a href="#exit-summary">exit summary</a>
+                <a href="#files">project files</a>
+                <a href="#troubleshooting">troubleshooting</a>
+                <a href="#changelog">changelog</a>
+
+                <div class="nav-footer">pentest toolkit</div>
+            </nav>
+
+            <main>
+                <h2 id="disclaimer">Disclaimer</h2>
+
+                <div class="warning">
+                    <strong
+                        >FOR PENETRATION TESTING AND EDUCATIONAL PURPOSES
+                        ONLY.</strong
+                    >
+                    <p>
+                        DOSping is a network stress testing tool. Use it only on
+                        systems you own or have written authorization to test.
+                        Unauthorized use against third-party systems is illegal
+                        in most jurisdictions. You accept full responsibility
+                        for how you use this software. The developers assume no
+                        liability.
+                    </p>
+                    <p><strong>USE AT YOUR OWN RISK.</strong></p>
+                </div>
+
+                <h2 id="quickstart">Quick Start</h2>
+
+                <p>
+                    No cloning needed. The setup scripts detect they are outside
+                    the repo, auto-clone from GitHub, install dependencies, and
+                    launch.
+                </p>
+
+                <h3>Linux / macOS</h3>
+                <pre><code>curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
+
+                <h3>Windows (PowerShell)</h3>
+                <pre><code>irm https://raw.githubusercontent.com/debug-cli/dosping/main/setup.bat -OutFile setup.bat; .\setup.bat</code></pre>
+
+                <h3>Ubuntu / Debian</h3>
+                <pre><code>sudo apt update && sudo apt install -y git python3 python3-pip python3-venv && curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
+
+                <h3>Arch Linux</h3>
+                <pre><code>sudo pacman -Sy --noconfirm git python python-pip && curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
+
+                <h3>Termux</h3>
+                <pre><code>pkg update -y && pkg install -y git python && curl -fsSL https://raw.githubusercontent.com/debug-cli/dosping/main/setup.sh | bash</code></pre>
+
+                <h3>Windows CMD</h3>
+                <pre><code>git clone https://github.com/debug-cli/dosping.git && cd dosping && setup.bat</code></pre>
+
+                <div class="note">
+                    <strong>Requirements:</strong> Python 3.12+ and git. The
+                    setup scripts create a virtual environment in
+                    <code>.venv</code>, install all packages from
+                    <code>requirements.txt</code>, and launch
+                    <code>dosping.py</code> automatically.
+                </div>
+
+                <h2 id="manual-install">Manual Installation</h2>
+
+                <pre><code>git clone https://github.com/debug-cli/dosping.git
 cd dosping
 python -m venv .venv
 
@@ -438,325 +524,1183 @@ python -m venv .venv
 pip install -r requirements.txt
 python dosping.py</code></pre>
 
-            <h3>Dependencies</h3>
-            <table>
-                <tr><th>Package</th><th>Min Version</th><th>Purpose</th></tr>
-                <tr><td><code>textual</code></td><td>0.40.0</td><td>TUI framework (widgets, screens, command palette, tabs)</td></tr>
-                <tr><td><code>rich</code></td><td>13.0.0</td><td>Terminal formatting, Rich markup, exit summary tables</td></tr>
-                <tr><td><code>requests</code></td><td>2.28.0</td><td>HTTP health check after flood completion</td></tr>
-            </table>
+                <h3>Dependencies</h3>
+                <table>
+                    <tr>
+                        <th>Package</th>
+                        <th>Min Version</th>
+                        <th>Purpose</th>
+                    </tr>
+                    <tr>
+                        <td><code>textual</code></td>
+                        <td>0.40.0</td>
+                        <td>
+                            TUI framework (widgets, screens, command palette,
+                            tabs)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>rich</code></td>
+                        <td>13.0.0</td>
+                        <td>
+                            Terminal formatting, Rich markup, exit summary
+                            tables
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>requests</code></td>
+                        <td>2.28.0</td>
+                        <td>HTTP health check after flood completion</td>
+                    </tr>
+                </table>
 
-            <h3>Other distros</h3>
-            <p>If your distro is not listed, open an issue at <a href="https://github.com/debug-cli/dosping/issues">github.com/debug-cli/dosping/issues</a> titled "(your distro) install command request" with the package manager commands for <code>git</code>, <code>python3</code>, <code>python3-pip</code>, and <code>python3-venv</code>.</p>
+                <h3>Other distros</h3>
+                <p>
+                    If your distro is not listed, open an issue at
+                    <a href="https://github.com/debug-cli/dosping/issues"
+                        >github.com/debug-cli/dosping/issues</a
+                    >
+                    titled "(your distro) install command request" with the
+                    package manager commands for <code>git</code>,
+                    <code>python3</code>, <code>python3-pip</code>, and
+                    <code>python3-venv</code>.
+                </p>
 
-            <h2 id="overview">What is DOSping</h2>
+                <h2 id="overview">What is DOSping</h2>
 
-            <p>DOSping ( /duːz/ /pɪŋ/ ) is a terminal-based network stress testing tool. It opens hundreds of concurrent TCP connections to a target IP address while simultaneously monitoring whether the target is still responding. The interface shows three live panels side by side: the flood log, the connectivity monitor, and a real-time stats sidebar.</p>
+                <p>
+                    DOSping ( /duːz/ /pɪŋ/ ) is a terminal-based network stress
+                    testing tool. It opens hundreds of concurrent TCP
+                    connections to a target IP address while simultaneously
+                    monitoring whether the target is still responding. The
+                    interface shows three live panels side by side: the flood
+                    log, the connectivity monitor, and a real-time stats
+                    sidebar.
+                </p>
 
-            <p>Built with Python, Textual, Rich, and asyncio. Runs on Windows, Linux, and macOS.</p>
+                <p>
+                    Built with Python, Textual, Rich, and asyncio. Runs on
+                    Windows, Linux, and macOS.
+                </p>
 
-            <h3>What makes it different</h3>
-            <ul>
-                <li>Live split-panel UI showing attack output and connectivity status simultaneously</li>
-                <li>Real-time stats: connections per second, success rate, bytes transferred, latency</li>
-                <li>Multi-tab sessions: run up to 4 tests against different targets at the same time</li>
-                <li>Command palette with 11 actions for controlling tests without memorizing shortcuts</li>
-                <li>Log export for post-test analysis</li>
-                <li>Session summary printed to terminal on exit</li>
-            </ul>
+                <h3>What makes it different</h3>
+                <ul>
+                    <li>
+                        Live split-panel UI showing attack output and
+                        connectivity status simultaneously
+                    </li>
+                    <li>
+                        Real-time stats: connections per second, success rate,
+                        bytes transferred, latency
+                    </li>
+                    <li>
+                        Multi-tab sessions: run up to 4 tests against different
+                        targets at the same time
+                    </li>
+                    <li>
+                        Three view modes (Skid, Advanced, IT) controlling panel
+                        visibility and detail level
+                    </li>
+                    <li>
+                        Command palette with 11 actions for controlling tests
+                        without memorizing shortcuts
+                    </li>
+                    <li>Log export for post-test analysis</li>
+                    <li>Session summary printed to terminal on exit</li>
+                </ul>
 
-            <h2 id="architecture">Architecture</h2>
+                <h2 id="architecture">Architecture</h2>
 
-            <p>DOSping is two Python files:</p>
+                <p>DOSping is two Python files:</p>
 
-            <table>
-                <tr><th>File</th><th>Lines</th><th>Responsibility</th></tr>
-                <tr><td><code>dosping.py</code></td><td>~1400</td><td>All UI: screens, widgets, command palette, tab management, stats display, exit summary</td></tr>
-                <tr><td><code>flooder.py</code></td><td>~160</td><td>Async TCP flood engine. No UI dependencies. Accepts callbacks for progress and logging.</td></tr>
-            </table>
+                <table>
+                    <tr>
+                        <th>File</th>
+                        <th>Lines</th>
+                        <th>Responsibility</th>
+                    </tr>
+                    <tr>
+                        <td><code>dosping.py</code></td>
+                        <td>~3200</td>
+                        <td>
+                            All UI: screens, widgets, command palette, tab
+                            management, view modes, stats display, exit summary
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>flooder.py</code></td>
+                        <td>~223</td>
+                        <td>
+                            Async TCP flood engine. No UI dependencies. Accepts
+                            callbacks for progress, logging, and per-connection
+                            detail.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>scanner.py</code></td>
+                        <td>~192</td>
+                        <td>
+                            Async TCP port scanner engine. Protocol
+                            fingerprinting, banner grabbing, device detection.
+                        </td>
+                    </tr>
+                </table>
 
-            <h3>Layout per tab</h3>
-            <div class="diagram"><span class="hl">┌─────────────────┬──────────────────┬────────────┐</span>
-<span class="hl">│</span> FLOOD OUTPUT     <span class="hl">│</span> CONNECTIVITY     <span class="hl">│</span> LIVE STATS <span class="hl">│</span>
-<span class="hl">│</span> TCP flood log    <span class="hl">│</span> ICMP ping        <span class="hl">│</span> Conn/s     <span class="hl">│</span>
-<span class="hl">│</span>                  <span class="hl">│</span> TCP probe        <span class="hl">│</span> Rate %     <span class="hl">│</span>
-<span class="hl">│</span> ProgressBar      <span class="hl">│</span>                  <span class="hl">│</span> Hits/Fails <span class="hl">│</span>
-<span class="hl">│</span> KITT Scanner     <span class="hl">│</span>                  <span class="hl">│</span> Bytes sent <span class="hl">│</span>
-<span class="hl">│</span>                  <span class="hl">│</span>                  <span class="hl">│</span> Uptime     <span class="hl">│</span>
-<span class="hl">└─────────────────┴──────────────────┴────────────┘</span></div>
+                <h3>Layout per tab</h3>
+                <div class="diagram">
+                    <span class="hl"
+                        >┌─────────────────┬──────────────────┬────────────┐</span
+                    >
+                    <span class="hl">│</span> FLOOD OUTPUT
+                    <span class="hl">│</span> CONNECTIVITY
+                    <span class="hl">│</span> LIVE STATS
+                    <span class="hl">│</span> <span class="hl">│</span> TCP
+                    flood log <span class="hl">│</span> ICMP ping
+                    <span class="hl">│</span> Conn/s <span class="hl">│</span>
+                    <span class="hl">│</span> <span class="hl">│</span> TCP
+                    probe <span class="hl">│</span> Rate %
+                    <span class="hl">│</span>
+                    <span class="hl">│</span> ProgressBar
+                    <span class="hl">│</span>
+                    <span class="hl">│</span> Hits/Fails
+                    <span class="hl">│</span> <span class="hl">│</span> KITT
+                    Scanner <span class="hl">│</span>
+                    <span class="hl">│</span> Bytes sent
+                    <span class="hl">│</span> <span class="hl">│</span>
+                    <span class="hl">│</span> <span class="hl">│</span> Uptime
+                    <span class="hl">│</span>
+                    <span class="hl"
+                        >└─────────────────┴──────────────────┴────────────┘</span
+                    >
+                </div>
 
-            <h3>Widget hierarchy</h3>
-            <div class="diagram">DOSPingApp
- └─ SplashScreen
- └─ SessionScreen
-     ├─ Header
-     ├─ TabbedContent
-     │   ├─ TestTabPane #1
-     │   │   └─ TestPanel
-     │   │       ├─ Horizontal
-     │   │       │   ├─ Vertical <span class="gr">(flood-container)</span>
-     │   │       │   │   ├─ Static <span class="gr">(panel-header)</span>
-     │   │       │   │   ├─ RichLog <span class="gr">(flood-log)</span>
-     │   │       │   │   ├─ ProgressBar
-     │   │       │   │   └─ KITTScanner
-     │   │       │   ├─ Vertical <span class="gr">(ping-container)</span>
-     │   │       │   │   ├─ Static <span class="gr">(panel-header-ping)</span>
-     │   │       │   │   └─ RichLog <span class="gr">(ping-log)</span>
-     │   │       │   └─ StatsPanel
-     │   ├─ TestTabPane #2 ...
-     ├─ Static <span class="gr">(status bar)</span>
-     └─ Footer</div>
+                <h3>Widget hierarchy</h3>
+                <div class="diagram">
+                    DOSPingApp └─ SplashScreen └─ SessionScreen ├─ Header ├─
+                    TabbedContent │ ├─ TestTabPane #1 │ │ └─ TestPanel │ │ ├─
+                    Horizontal │ │ │ ├─ Vertical
+                    <span class="gr">(flood-container)</span> │ │ │ │ ├─ Static
+                    <span class="gr">(panel-header)</span> │ │ │ │ ├─ RichLog
+                    <span class="gr">(flood-log)</span> │ │ │ │ ├─ ProgressBar │
+                    │ │ │ └─ KITTScanner │ │ │ ├─ Vertical
+                    <span class="gr">(ping-container)</span> │ │ │ │ ├─ Static
+                    <span class="gr">(panel-header-ping)</span> │ │ │ │ └─
+                    RichLog <span class="gr">(ping-log)</span> │ │ │ └─
+                    StatsPanel │ ├─ TestTabPane #2 ... ├─ Static
+                    <span class="gr">(status bar)</span> └─ Footer
+                </div>
 
-            <h2 id="screens">Screen Flow</h2>
+                <h2 id="view-modes">View Modes</h2>
 
-            <div class="diagram"><span class="hl">SplashScreen</span>  ──(any key)──>  <span class="hl">SessionScreen</span>  ──(auto)──>  <span class="hl">SetupModal</span>
-                                         │                         │
-                                         │    <──(config)──────────┘
-                                         │
-                                         ├── TestTabPane #1 created
-                                         ├── Ctrl+N ──> SetupModal ──> TestTabPane #2
-                                         └── q ──> Exit + Summary</div>
+                <p>
+                    v3.5 introduces three view modes that control which panels
+                    are visible and how much detail is shown. Defined by the
+                    <code>ViewMode</code> enum.
+                </p>
 
-            <p><strong>SplashScreen</strong> plays the matrix animation. Press any key to move on.</p>
-            <p><strong>SessionScreen</strong> is the main workspace. Holds all tabs. Automatically opens SetupModal on first load.</p>
-            <p><strong>SetupModal</strong> is a ModalScreen overlay. Returns config data to SessionScreen, which creates a new tab. Press Escape to cancel.</p>
+                <table>
+                    <tr>
+                        <th>Mode</th>
+                        <th>Target User</th>
+                        <th>Panels Shown</th>
+                        <th>Detail Level</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Skid</strong></td>
+                        <td>Beginners</td>
+                        <td>Minimal panels, no jargon</td>
+                        <td>Low</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Advanced</strong></td>
+                        <td>Standard users</td>
+                        <td>Standard panels + latency graph + health</td>
+                        <td>Medium</td>
+                    </tr>
+                    <tr>
+                        <td><strong>IT</strong></td>
+                        <td>Professionals</td>
+                        <td>Every panel, every metric, raw data</td>
+                        <td>Full</td>
+                    </tr>
+                </table>
 
-            <h2 id="splash">Splash Screen</h2>
+                <h3>Cycling</h3>
+                <p>
+                    Call <code>ViewMode.next()</code> to cycle through modes in
+                    order: Skid → Advanced → IT → Skid. Each mode has a
+                    <code>display_name</code> property for UI labels.
+                </p>
 
-            <p>The first thing you see on launch. A matrix-style character reveal sweeps left to right across the DOSping ASCII logo. Random characters from the glitch set (<code>!@#$%^&*01█▓▒░╬╠╣╦╩╗</code>) appear and resolve into the correct characters as the sweep passes.</p>
+                <h3>Implementation</h3>
+                <p>
+                    The <code>ViewMode</code> enum is defined at the top of
+                    <code>dosping.py</code>. Screens and widgets reference it to
+                    decide which components to render or hide.
+                </p>
 
-            <p>Below the logo, a KITT scanner bar (bouncing glow, left and right) runs continuously. The animation runs at 25 fps. Press any key to advance.</p>
+                <h2 id="screens">Screen Flow</h2>
 
-            <h3>How the animation works</h3>
-            <ol>
-                <li>A <code>reveal_col</code> counter increments each frame (40ms)</li>
-                <li>Characters to the left of <code>reveal_col</code> render in their final form</li>
-                <li>Characters within 3 columns of the sweep render as random glitch characters (40% chance of real character, 60% random)</li>
-                <li>Characters to the right render as dim random characters (18% visibility)</li>
-                <li>Once <code>reveal_col</code> passes the end, the full Rich-markup logo replaces the animation</li>
-            </ol>
+                <div class="diagram">
+                    <span class="hl">SplashScreen</span> ──(any key)──>
+                    <span class="hl">HomeScreen</span>
+                    │ ┌───────────────────┼────────────────────────┐ │ │ │
+                    [ATTACKER] [PORT SCANNER] [⚙ SETTINGS] │ │ │
+                    <span class="hl">SetupModal</span>
+                    <span class="hl">ScannerSetupModal</span>
+                    <span class="hl">SettingsModal</span>
+                    │ │
+                    <span class="hl">SessionScreen</span>
+                    <span class="hl">SessionScreen</span> (ATTACK mode) (SCAN
+                    mode) │ │ TestTabPane(s) ScanTabPane(s) + TestPanel +
+                    ScanSessionPanel
+                </div>
 
-            <h2 id="setup">Setup Modal</h2>
+                <p>
+                    <strong>SplashScreen</strong> plays the matrix animation.
+                    Press any key to advance to the Home Screen.
+                </p>
+                <p>
+                    <strong>HomeScreen</strong> is the new v3.5 landing screen.
+                    Select ATTACKER (flood mode), PORT SCANNER (scan mode), or
+                    open Settings.
+                </p>
+                <p>
+                    <strong>SessionScreen</strong> is the main workspace in
+                    either Attack or Scan mode. Holds all tabs in a
+                    TabbedContent.
+                </p>
+                <p>
+                    <strong>SetupModal / ScannerSetupModal</strong> are overlay
+                    forms for configuring a new attack or scan session. Returns
+                    config data to SessionScreen. Press Escape to cancel.
+                </p>
 
-            <p>A modal overlay (ModalScreen) that appears on top of the session screen. Dims the background. Contains three input fields and two buttons.</p>
+                <h2 id="splash">Splash Screen</h2>
 
-            <table>
-                <tr><th>Field</th><th>Validation</th><th>Default</th><th>Description</th></tr>
-                <tr><td>Target IP</td><td>Valid IPv4 (<code>socket.inet_pton</code>)</td><td>none</td><td>The IP address you are testing. IPv6 not supported.</td></tr>
-                <tr><td>Ports</td><td>Comma-separated, each 1-65535</td><td>80</td><td>Target ports. Flood cycles through them round-robin.</td></tr>
-                <tr><td>Bots</td><td>Integer, minimum 1</td><td>200</td><td>Total TCP connections to attempt.</td></tr>
-            </table>
+                <p>
+                    The first thing you see on launch. A matrix-style character
+                    reveal sweeps left to right across the DOSping ASCII logo.
+                    Random characters from the glitch set
+                    (<code>!@#$%^&*01█▓▒░╬╠╣╦╩╗</code>) appear and resolve into
+                    the correct characters as the sweep passes.
+                </p>
 
-            <h3>Input navigation</h3>
-            <ul>
-                <li><code>Enter</code> moves to the next field</li>
-                <li><code>Enter</code> on the last field (Bots) submits</li>
-                <li><code>Escape</code> cancels, returns to session screen</li>
-                <li>Click "Launch Attack" to submit</li>
-                <li>Click "Cancel" to dismiss</li>
-            </ul>
+                <p>
+                    Below the logo, a KITT scanner bar (bouncing glow, left and
+                    right) runs continuously. The animation runs at 25 fps.
+                    Press any key to advance.
+                </p>
 
-            <p>On successful validation, the modal calls <code>self.dismiss(config_dict)</code>. SessionScreen receives the config and creates a new TestTabPane.</p>
+                <h3>How the animation works</h3>
+                <ol>
+                    <li>
+                        A <code>reveal_col</code> counter increments each frame
+                        (40ms)
+                    </li>
+                    <li>
+                        Characters to the left of <code>reveal_col</code> render
+                        in their final form
+                    </li>
+                    <li>
+                        Characters within 3 columns of the sweep render as
+                        random glitch characters (40% chance of real character,
+                        60% random)
+                    </li>
+                    <li>
+                        Characters to the right render as dim random characters
+                        (18% visibility)
+                    </li>
+                    <li>
+                        Once <code>reveal_col</code> passes the end, the full
+                        Rich-markup logo replaces the animation
+                    </li>
+                </ol>
 
-            <h2 id="flood-panel">Flood Panel (Left)</h2>
+                <h2 id="home-screen">Home Screen</h2>
 
-            <p>The left panel shows the TCP flood engine output. Top to bottom:</p>
+                <p>
+                    The Home Screen is the v3.5 landing screen that replaces the
+                    old direct-to-session flow. It appears after the splash
+                    animation completes.
+                </p>
 
-            <h3>Panel header</h3>
-            <p>Target IP and port(s). Format: <code>FLOOD OUTPUT -- 178.79.134.182:80,443</code></p>
+                <h3>Layout</h3>
+                <div class="diagram">
+                    ┌─────────────────────────────────────────────────┐ │
+                    DOSPING v3.5 [glitch animation on right] │ ← header
+                    ├─────────────────────────────────────────────────┤ │ │ │
+                    ┌──────────────────┐ ┌──────────────────┐ │ │ │ PORT SCANNER
+                    │ │ ATTACKER │ │ ← tiles │ │ (radar art) │ │ (flame art) │ │
+                    │ └──────────────────┘ └──────────────────┘ │ │ │
+                    ├─────────────────────────────────────────────────┤ │ [⚙
+                    SETTINGS] │ ← bottom bar
+                    └─────────────────────────────────────────────────┘
+                </div>
 
-            <h3>Flood log (RichLog)</h3>
-            <p>Scrollable log showing:</p>
-            <ul>
-                <li><strong>Launch banner</strong> -- target, ports, bots, concurrency settings</li>
-                <li><strong>Progress lines</strong> -- printed every 25 connections. Visual bar, percentage, hit count, miss count</li>
-                <li><strong>Completion summary</strong> -- total connected and failed counts</li>
-                <li><strong>HTTP health check</strong> -- sends HTTP HEAD to the target, logs the status code</li>
-            </ul>
+                <h3>Navigation</h3>
+                <table>
+                    <tr>
+                        <th>Key</th>
+                        <th>Action</th>
+                    </tr>
+                    <tr>
+                        <td><code>←</code> / <code>→</code></td>
+                        <td>Move focus between tiles</td>
+                    </tr>
+                    <tr>
+                        <td><code>↓</code></td>
+                        <td>Move focus to Settings button</td>
+                    </tr>
+                    <tr>
+                        <td><code>↑</code></td>
+                        <td>Move focus back to tiles</td>
+                    </tr>
+                    <tr>
+                        <td><code>Enter</code></td>
+                        <td>Activate focused tile or button</td>
+                    </tr>
+                    <tr>
+                        <td><code>a</code></td>
+                        <td>Go to Attacker (shortcut)</td>
+                    </tr>
+                    <tr>
+                        <td><code>p</code></td>
+                        <td>Go to Port Scanner (shortcut)</td>
+                    </tr>
+                    <tr>
+                        <td><code>s</code> / <code>Esc</code></td>
+                        <td>Open Settings</td>
+                    </tr>
+                </table>
 
-            <h3>Progress bar</h3>
-            <p>Textual ProgressBar widget. Total equals bot count. Increments after each attempt.</p>
+                <h3>Animated Header</h3>
+                <p>
+                    The header text <code>DOSPING v3.5</code> has a live glitch
+                    animation: the left portion is solid white/amber, while the
+                    right edge continuously cycles through random glitch
+                    characters. This mirrors the splash screen animation style.
+                </p>
 
-            <h3>KITT Scanner</h3>
-            <p>Animated glow bouncing left and right at 30 fps. 5-cell glow radius with brightness falloff:</p>
-            <table>
-                <tr><th>Distance</th><th>Char</th><th>Hex</th></tr>
-                <tr><td>0 (center)</td><td><code>━</code></td><td>#e8c060</td></tr>
-                <tr><td>1</td><td><code>━</code></td><td>#c8a050</td></tr>
-                <tr><td>2</td><td><code>━</code></td><td>#a88040</td></tr>
-                <tr><td>3</td><td><code>─</code></td><td>#7a5a20</td></tr>
-                <tr><td>4</td><td><code>─</code></td><td>#4a3810</td></tr>
-                <tr><td>5</td><td><code>─</code></td><td>#2a2010</td></tr>
-                <tr><td>6+</td><td><code>─</code></td><td>#181408</td></tr>
-            </table>
-            <p>On flood completion, the scanner halts and shows a centered "COMPLETE" label.</p>
+                <h2 id="settings">Settings</h2>
 
-            <h2 id="ping-panel">Connectivity Panel (Center)</h2>
+                <p>
+                    The Settings modal is accessible from the Home Screen's
+                    <code>⚙ SETTINGS</code> button or by pressing
+                    <code>s</code>/<code>Esc</code> on the Home Screen. Changes
+                    apply instantly for the current session.
+                </p>
 
-            <p>Real-time connectivity status from two independent monitors: ICMP ping and TCP port probes.</p>
+                <h3>Available Toggles</h3>
+                <table>
+                    <tr>
+                        <th>Setting</th>
+                        <th>Options</th>
+                        <th>Effect</th>
+                    </tr>
+                    <tr>
+                        <td>Default View Mode</td>
+                        <td>Skid → Advanced → IT (cycles)</td>
+                        <td>Changes the active view mode for all panels</td>
+                    </tr>
+                    <tr>
+                        <td>Matrix Animation</td>
+                        <td>ON / OFF</td>
+                        <td>Toggles the glitch animation on the HomeHeader</td>
+                    </tr>
+                    <tr>
+                        <td>KITT Animation</td>
+                        <td>ON / OFF</td>
+                        <td>Toggles the KITT scanner bar animation</td>
+                    </tr>
+                    <tr>
+                        <td>Theme</td>
+                        <td>Matrix → Blue → Red (cycles)</td>
+                        <td>Switches the color theme across the entire app</td>
+                    </tr>
+                </table>
 
-            <h3>Log format</h3>
-            <table>
-                <tr><th>Prefix</th><th>Meaning</th></tr>
-                <tr><td><code>[ICMP] ●</code></td><td>Ping reply received (target responding)</td></tr>
-                <tr><td><code>[ICMP] ⚠</code></td><td>Timeout or unreachable (ICMP may be blocked)</td></tr>
-                <tr><td><code>[TCP:80] ●</code></td><td>Port open, connection accepted</td></tr>
-                <tr><td><code>[TCP:80] ✖</code></td><td>Timeout or error</td></tr>
-                <tr><td><code>[TCP:80] ↩</code></td><td>Connection refused (port closed, host reachable)</td></tr>
-            </table>
+                <h3>Themes</h3>
+                <table>
+                    <tr>
+                        <th>Theme</th>
+                        <th>Accent</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>Matrix</td>
+                        <td>Amber / Green</td>
+                        <td>Classic hacker terminal aesthetic</td>
+                    </tr>
+                    <tr>
+                        <td>Blue</td>
+                        <td>#3f8cff</td>
+                        <td>Cyberpunk blue with teal accents</td>
+                    </tr>
+                    <tr>
+                        <td>Red</td>
+                        <td>#ff6b35</td>
+                        <td>Fire/warning red with orange accents</td>
+                    </tr>
+                </table>
 
-            <p>TCP probe lines include latency (ms) and a sequential probe number.</p>
+                <h2 id="port-scanner">Port Scanner</h2>
 
-            <div class="note">
-                <strong>Why ICMP shows "timed out" but TCP shows "OPEN":</strong> Many servers block ICMP at the firewall while keeping TCP services running. If you see ICMP timeouts with TCP OPEN responses, the target is alive. TCP is the more reliable indicator.
-            </div>
+                <p>
+                    The Port Scanner is a new mode in v3.5 that scans a target
+                    host for open TCP ports, identifies protocols, and
+                    fingerprints device types — all without requiring
+                    <code>nmap</code> or administrator privileges.
+                </p>
 
-            <h2 id="stats-panel">Stats Panel (Right)</h2>
+                <h3>Setup</h3>
+                <p>
+                    From the Home Screen, click the
+                    <strong>PORT SCANNER</strong> tile or press <code>p</code>.
+                    The Scanner Setup Modal opens:
+                </p>
+                <table>
+                    <tr>
+                        <th>Field</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>Target IP</td>
+                        <td>—</td>
+                        <td>IPv4 address or hostname to scan</td>
+                    </tr>
+                    <tr>
+                        <td>Ports</td>
+                        <td>21,22,80,443,554,8000-8010</td>
+                        <td>
+                            Comma-separated ports or ranges (e.g.
+                            <code>80,443,8000-8010</code>)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Connect Timeout</td>
+                        <td>0.75s</td>
+                        <td>
+                            TCP connection timeout per port. Lower = faster but
+                            more missed ports.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Banner Timeout</td>
+                        <td>0.45s</td>
+                        <td>
+                            Time to wait for a protocol banner after connecting.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Max Concurrency</td>
+                        <td>128</td>
+                        <td>
+                            Maximum parallel TCP checks running simultaneously.
+                        </td>
+                    </tr>
+                </table>
 
-            <p>26-character-wide sidebar. Updates every 1 second. Two sections: Live Stats and Monitors.</p>
+                <h3>Scan Session Layout</h3>
+                <div class="diagram">
+                    ┌─────────────────────┬──────────────────────┬────────────┐
+                    │ PORT DISPLAYER │ CONNECTIVITY │ SCAN STATS │ │ ● 80 🌐 Web
+                    Srv │ ICMP ping │ Total: 20 │ │ ● 22 ❓ Unknown │ TCP probe
+                    │ Open: 3 │ │ ✖ 443 ❓ Unknown │ │ Access: 1 │ │ ● 554 📷
+                    Camera │ Latency graph │ Closed: 16 │ │ │ GeoIP panel │
+                    Elapsed │
+                    └─────────────────────┴──────────────────────┴────────────┘
+                </div>
 
-            <h3>Metrics</h3>
-            <table>
-                <tr><th>Metric</th><th>Source</th><th>Description</th></tr>
-                <tr><td>Conn/s</td><td><code>flooder.connections_per_sec()</code></td><td>Rolling rate over a 5-second window. All attempts.</td></tr>
-                <tr><td>Rate</td><td><code>successful / total * 100</code></td><td>Success percentage. 10-char visual bar + number. Color-coded by threshold.</td></tr>
-                <tr><td>Hits</td><td><code>flooder.successful</code></td><td>Connections that opened, sent, and closed cleanly.</td></tr>
-                <tr><td>Fails</td><td><code>flooder.failed</code></td><td>Timeouts, refusals, errors.</td></tr>
-                <tr><td>Sent</td><td><code>flooder.bytes_sent</code></td><td>Bytes written. Formatted as B/KB/MB.</td></tr>
-                <tr><td>Time</td><td><code>time.time() - start_time</code></td><td>Wall-clock duration. <code>Xm Ys</code> format.</td></tr>
-            </table>
+                <h3>Status Indicators</h3>
+                <table>
+                    <tr>
+                        <th>Color</th>
+                        <th>State</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td>🟢 Green</td>
+                        <td>online</td>
+                        <td>
+                            Port open, TCP connected, no recognizable protocol
+                            banner
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>🔵 Blue</td>
+                        <td>accessible</td>
+                        <td>
+                            Port open with an identified interactive protocol
+                            (HTTP, SSH, FTP, etc.)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>🔴 Red</td>
+                        <td>offline</td>
+                        <td>
+                            Port filtered or closed — TCP connection refused or
+                            timed out
+                        </td>
+                    </tr>
+                </table>
 
-            <h3>Monitor indicators</h3>
-            <ul>
-                <li><strong>ICMP</strong> -- ON or OFF. Toggleable via command palette.</li>
-                <li><strong>TCP</strong> -- ON or OFF. Toggleable via command palette.</li>
-            </ul>
+                <h3>View Modes in Scan Sessions</h3>
+                <table>
+                    <tr>
+                        <th>Mode</th>
+                        <th>Port Displayer shows</th>
+                    </tr>
+                    <tr>
+                        <td>Skid</td>
+                        <td>Status circle + device icon only</td>
+                    </tr>
+                    <tr>
+                        <td>Advanced</td>
+                        <td>Port number, protocol, latency</td>
+                    </tr>
+                    <tr>
+                        <td>IT</td>
+                        <td>Everything + raw banner text</td>
+                    </tr>
+                </table>
 
-            <h2 id="tabs">Multi-Tab Sessions</h2>
+                <h2 id="scanner-engine">Scanner Engine</h2>
 
-            <p>TabbedContent widget with up to 4 simultaneous test tabs. Each tab is fully independent: its own Flooder, ping subprocess, TCP probe loop, stats timer, and log buffers.</p>
+                <p>
+                    The scanner is implemented in <code>scanner.py</code> as a
+                    pure-Python async engine. No <code>nmap</code>, no external
+                    tools, no administrator privileges required.
+                </p>
 
-            <h3>Tab lifecycle</h3>
-            <ol>
-                <li>Press <code>Ctrl+N</code> or use "New Test" from the palette</li>
-                <li>SetupModal opens as an overlay</li>
-                <li>Enter target, ports, bots. Submit.</li>
-                <li>New TestTabPane created with a TestPanel inside</li>
-                <li>Tab becomes active immediately</li>
-                <li>Flood, ICMP, and TCP monitors start on mount</li>
-            </ol>
+                <h3>How it works</h3>
+                <ol>
+                    <li>
+                        Creates an
+                        <code>asyncio.Semaphore(concurrency)</code> to limit
+                        parallel connections
+                    </li>
+                    <li>
+                        Spawns one <code>asyncio.Task</code> per port via
+                        <code>asyncio.gather()</code>
+                    </li>
+                    <li>
+                        Each task attempts
+                        <code>asyncio.open_connection(host, port)</code> with a
+                        configurable timeout
+                    </li>
+                    <li>
+                        On success, sends a port-specific probe (HTTP GET, SMTP
+                        EHLO, RTSP OPTIONS, etc.)
+                    </li>
+                    <li>
+                        Reads up to 512 bytes of response within the banner
+                        timeout
+                    </li>
+                    <li>
+                        Fingerprints the protocol and device type from the
+                        banner text
+                    </li>
+                    <li>
+                        Returns a <code>ScanResult</code> dataclass with all
+                        findings
+                    </li>
+                </ol>
 
-            <h3>Tab labels</h3>
-            <p>Show the target IP and primary port. Spinner animation (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) at 10 fps while running. Checkmark on completion.</p>
-            <ul>
-                <li>Running: <code>⠹ 178.79.134.182:80</code></li>
-                <li>Complete: <code>✓ 178.79.134.182:80</code></li>
-                <li>Multiple ports: <code>⠹ 178.79.134.182 (80,443)</code></li>
-            </ul>
+                <h3>Protocol Fingerprinting</h3>
+                <table>
+                    <tr>
+                        <th>Protocol</th>
+                        <th>Detection Method</th>
+                    </tr>
+                    <tr>
+                        <td>HTTP / HTTPS</td>
+                        <td>
+                            Port 80/443/8080/8443 or <code>HTTP/</code> in
+                            banner
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>SSH</td>
+                        <td><code>SSH-</code> in banner or port 22</td>
+                    </tr>
+                    <tr>
+                        <td>FTP</td>
+                        <td><code>ftp</code> in banner or port 21</td>
+                    </tr>
+                    <tr>
+                        <td>SMTP</td>
+                        <td><code>smtp</code> in banner or port 25/587</td>
+                    </tr>
+                    <tr>
+                        <td>POP3</td>
+                        <td><code>+OK POP</code> in banner or port 110</td>
+                    </tr>
+                    <tr>
+                        <td>IMAP</td>
+                        <td><code>* OK</code> in banner or port 143</td>
+                    </tr>
+                    <tr>
+                        <td>RTSP</td>
+                        <td><code>rtsp</code> in banner or port 554</td>
+                    </tr>
+                    <tr>
+                        <td>Telnet</td>
+                        <td><code>telnet</code> in banner or port 23</td>
+                    </tr>
+                </table>
 
-            <h3>Closing tabs</h3>
-            <p><code>Ctrl+W</code> or "Close Tab" command. Stops the flooder, kills ping, stops stats timer, removes the pane.</p>
+                <h3>Device Fingerprinting</h3>
+                <table>
+                    <tr>
+                        <th>Device Type</th>
+                        <th>Detected by</th>
+                    </tr>
+                    <tr>
+                        <td>📶 Router</td>
+                        <td>Banner contains: router, openwrt, mikrotik</td>
+                    </tr>
+                    <tr>
+                        <td>📷 Camera</td>
+                        <td>
+                            Banner contains: camera, ipc, hikvision, dahua; or
+                            RTSP protocol
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>📺 TV</td>
+                        <td>
+                            Banner contains: roku, chromecast, webos, smart-tv
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>📱 Phone</td>
+                        <td>Banner contains: android, iphone, mobile</td>
+                    </tr>
+                    <tr>
+                        <td>🎮 Gaming Console</td>
+                        <td>Banner contains: playstation, xbox, nintendo</td>
+                    </tr>
+                    <tr>
+                        <td>🌐 Web Server</td>
+                        <td>
+                            HTTP/HTTPS on standard web ports (80/443/8080/8443)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>🖥 Server</td>
+                        <td>FTP on port 21</td>
+                    </tr>
+                    <tr>
+                        <td>❓ Unknown</td>
+                        <td>No match from any above rule</td>
+                    </tr>
+                </table>
 
-            <h3>Tab limit</h3>
-            <p>Maximum 4. Warning notification if you try to open a 5th.</p>
+                <h2 id="setup">Setup Modal</h2>
 
-            <h3>Background behavior</h3>
-            <p>Inactive tabs keep running. TabbedContent hides panes via CSS but does not unmount them. Workers, subprocesses, and timers continue in all tabs simultaneously.</p>
+                <p>
+                    A modal overlay (ModalScreen) that appears on top of the
+                    session screen. Dims the background. Contains three input
+                    fields and two buttons.
+                </p>
 
-            <h2 id="palette">Command Palette</h2>
+                <table>
+                    <tr>
+                        <th>Field</th>
+                        <th>Validation</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>Target IP</td>
+                        <td>Valid IPv4 (<code>socket.inet_pton</code>)</td>
+                        <td>none</td>
+                        <td>
+                            The IP address you are testing. IPv6 not supported.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Ports</td>
+                        <td>Comma-separated, each 1-65535</td>
+                        <td>80</td>
+                        <td>
+                            Target ports. Flood cycles through them round-robin.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Bots</td>
+                        <td>Integer, minimum 1</td>
+                        <td>200</td>
+                        <td>Total TCP connections to attempt.</td>
+                    </tr>
+                </table>
 
-            <p><code>Ctrl+P</code> anywhere. Fuzzy-search. Includes Textual system commands (change theme, quit) plus 11 DOSping-specific commands:</p>
+                <h3>Input navigation</h3>
+                <ul>
+                    <li><code>Enter</code> moves to the next field</li>
+                    <li><code>Enter</code> on the last field (Bots) submits</li>
+                    <li>
+                        <code>Escape</code> cancels, returns to session screen
+                    </li>
+                    <li>Click "Launch Attack" to submit</li>
+                    <li>Click "Cancel" to dismiss</li>
+                </ul>
 
-            <table>
-                <tr><th>Command</th><th>Action</th><th>Details</th></tr>
-                <tr>
-                    <td>New Test</td>
-                    <td>Opens SetupModal</td>
-                    <td>Same as <code>Ctrl+N</code>. Blocked at 4 tabs.</td>
-                </tr>
-                <tr>
-                    <td>Stop Flood</td>
-                    <td>Stops the active flood</td>
-                    <td>Sets stop flag. Running coroutines exit early. KITT scanner halts.</td>
-                </tr>
-                <tr>
-                    <td>Reset Current Test</td>
-                    <td>Full reset</td>
-                    <td>Stops flood, kills ping, clears logs, resets progress bar, restarts KITT scanner, re-launches flood and ping with same config.</td>
-                </tr>
-                <tr>
-                    <td>Export Log</td>
-                    <td>Saves to .txt</td>
-                    <td>Writes <code>dosping_&lt;IP&gt;_&lt;timestamp&gt;.txt</code> to cwd. Strips Rich markup. Includes config, flood log, connectivity log.</td>
-                </tr>
-                <tr>
-                    <td>Clear Flood Log</td>
-                    <td>Clears left panel</td>
-                    <td>Calls <code>RichLog.clear()</code>. Internal buffer for export is unaffected.</td>
-                </tr>
-                <tr>
-                    <td>Clear Ping Log</td>
-                    <td>Clears center panel</td>
-                    <td>Same for connectivity log.</td>
-                </tr>
-                <tr>
-                    <td>Toggle ICMP Monitor</td>
-                    <td>Enable/disable ICMP</td>
-                    <td>Kills ping subprocess when off. ICMP loop sleeps until re-enabled.</td>
-                </tr>
-                <tr>
-                    <td>Toggle TCP Monitor</td>
-                    <td>Enable/disable TCP</td>
-                    <td>TCP loop sleeps instead of probing. Does not affect the flood.</td>
-                </tr>
-                <tr>
-                    <td>Close Tab</td>
-                    <td>Closes active tab</td>
-                    <td>Same as <code>Ctrl+W</code>.</td>
-                </tr>
-                <tr>
-                    <td>Open Documentation</td>
-                    <td>Opens this page</td>
-                    <td>Uses <code>webbrowser.open()</code> on <code>docs/index.html</code>.</td>
-                </tr>
-                <tr>
-                    <td>Open Terminal</td>
-                    <td>System terminal</td>
-                    <td>Windows: <code>start cmd.exe</code>. macOS: <code>open -a Terminal</code>. Linux: tries gnome-terminal, xfce4-terminal, konsole, xterm.</td>
-                </tr>
-            </table>
+                <p>
+                    On successful validation, the modal calls
+                    <code>self.dismiss(config_dict)</code>. SessionScreen
+                    receives the config and creates a new TestTabPane.
+                </p>
 
-            <h3>Internals</h3>
-            <p><code>DOSPingCommandProvider</code> extends Textual's <code>Provider</code>. <code>search()</code> uses <code>self.matcher(query)</code> for fuzzy matching. Each command yields a <code>Hit</code> with score, highlighted text, and async callback. Callbacks delegate to <code>SessionScreen</code> or <code>TestPanel</code> methods.</p>
+                <h2 id="flood-panel">Flood Panel (Left)</h2>
 
-            <h2 id="shortcuts">Keyboard Shortcuts</h2>
+                <p>
+                    The left panel shows the TCP flood engine output. Top to
+                    bottom:
+                </p>
 
-            <table>
-                <tr><th>Key</th><th>Action</th><th>Context</th><th>Notes</th></tr>
-                <tr><td><code>Ctrl+P</code></td><td>Command palette</td><td>Anywhere</td><td>Built-in Textual binding.</td></tr>
-                <tr><td><code>Ctrl+N</code></td><td>New test tab</td><td>Session</td><td>Blocked at 4 tabs.</td></tr>
-                <tr><td><code>Ctrl+W</code></td><td>Close tab</td><td>Session</td><td>Full cleanup.</td></tr>
-                <tr><td><code>s</code></td><td>Stop flood</td><td>Session</td><td>Won't trigger in Input fields.</td></tr>
-                <tr><td><code>q</code></td><td>Quit</td><td>Session</td><td>Saves stats. Prints exit summary.</td></tr>
-                <tr><td><code>Escape</code></td><td>Cancel</td><td>Setup modal</td><td>No tab created.</td></tr>
-                <tr><td><code>Enter</code></td><td>Next / Submit</td><td>Setup modal</td><td>IP > Ports > Bots > Submit.</td></tr>
-            </table>
+                <h3>Panel header</h3>
+                <p>
+                    Target IP and port(s). Format:
+                    <code>FLOOD OUTPUT -- 178.79.134.182:80,443</code>
+                </p>
 
-            <div class="note">
-                <strong>Input safety:</strong> <code>s</code> and <code>q</code> do not trigger when a text Input has focus. You can type "s" in an IP field safely.
-            </div>
+                <h3>Flood log (RichLog)</h3>
+                <p>Scrollable log showing:</p>
+                <ul>
+                    <li>
+                        <strong>Launch banner</strong> -- target, ports, bots,
+                        concurrency settings
+                    </li>
+                    <li>
+                        <strong>Progress lines</strong> -- printed every 25
+                        connections. Visual bar, percentage, hit count, miss
+                        count
+                    </li>
+                    <li>
+                        <strong>Completion summary</strong> -- total connected
+                        and failed counts
+                    </li>
+                    <li>
+                        <strong>HTTP health check</strong> -- sends HTTP HEAD to
+                        the target, logs the status code
+                    </li>
+                </ul>
 
-            <h2 id="export">Log Export</h2>
+                <h3>Progress bar</h3>
+                <p>
+                    Textual ProgressBar widget. Total equals bot count.
+                    Increments after each attempt.
+                </p>
 
-            <p>"Export Log" from the palette. Active tab's logs saved to plain text.</p>
+                <h3>KITT Scanner</h3>
+                <p>
+                    Animated glow bouncing left and right at 30 fps. 5-cell glow
+                    radius with brightness falloff:
+                </p>
+                <table>
+                    <tr>
+                        <th>Distance</th>
+                        <th>Char</th>
+                        <th>Hex</th>
+                    </tr>
+                    <tr>
+                        <td>0 (center)</td>
+                        <td><code>━</code></td>
+                        <td>#e8c060</td>
+                    </tr>
+                    <tr>
+                        <td>1</td>
+                        <td><code>━</code></td>
+                        <td>#c8a050</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td><code>━</code></td>
+                        <td>#a88040</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td><code>─</code></td>
+                        <td>#7a5a20</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td><code>─</code></td>
+                        <td>#4a3810</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td><code>─</code></td>
+                        <td>#2a2010</td>
+                    </tr>
+                    <tr>
+                        <td>6+</td>
+                        <td><code>─</code></td>
+                        <td>#181408</td>
+                    </tr>
+                </table>
+                <p>
+                    On flood completion, the scanner halts and shows a centered
+                    "COMPLETE" label.
+                </p>
 
-            <h3>File naming</h3>
-<pre><code>dosping_&lt;IP&gt;_&lt;YYYYMMDD_HHMMSS&gt;.txt
+                <h2 id="ping-panel">Connectivity Panel (Center)</h2>
+
+                <p>
+                    Real-time connectivity status from two independent monitors:
+                    ICMP ping and TCP port probes.
+                </p>
+
+                <h3>Log format</h3>
+                <table>
+                    <tr>
+                        <th>Prefix</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td><code>[ICMP] ●</code></td>
+                        <td>Ping reply received (target responding)</td>
+                    </tr>
+                    <tr>
+                        <td><code>[ICMP] ⚠</code></td>
+                        <td>Timeout or unreachable (ICMP may be blocked)</td>
+                    </tr>
+                    <tr>
+                        <td><code>[TCP:80] ●</code></td>
+                        <td>Port open, connection accepted</td>
+                    </tr>
+                    <tr>
+                        <td><code>[TCP:80] ✖</code></td>
+                        <td>Timeout or error</td>
+                    </tr>
+                    <tr>
+                        <td><code>[TCP:80] ↩</code></td>
+                        <td>
+                            Connection refused (port closed, host reachable)
+                        </td>
+                    </tr>
+                </table>
+
+                <p>
+                    TCP probe lines include latency (ms) and a sequential probe
+                    number.
+                </p>
+
+                <div class="note">
+                    <strong
+                        >Why ICMP shows "timed out" but TCP shows
+                        "OPEN":</strong
+                    >
+                    Many servers block ICMP at the firewall while keeping TCP
+                    services running. If you see ICMP timeouts with TCP OPEN
+                    responses, the target is alive. TCP is the more reliable
+                    indicator.
+                </div>
+
+                <h2 id="stats-panel">Stats Panel (Right)</h2>
+
+                <p>
+                    26-character-wide sidebar. Updates every 1 second. Two
+                    sections: Live Stats and Monitors.
+                </p>
+
+                <h3>Metrics</h3>
+                <table>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Source</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>Conn/s</td>
+                        <td><code>flooder.connections_per_sec()</code></td>
+                        <td>
+                            Rolling rate over a 5-second window. All attempts.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Rate</td>
+                        <td><code>successful / total * 100</code></td>
+                        <td>
+                            Success percentage. 10-char visual bar + number.
+                            Color-coded by threshold.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Hits</td>
+                        <td><code>flooder.successful</code></td>
+                        <td>
+                            Connections that opened, sent, and closed cleanly.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Fails</td>
+                        <td><code>flooder.failed</code></td>
+                        <td>Timeouts, refusals, errors.</td>
+                    </tr>
+                    <tr>
+                        <td>Sent</td>
+                        <td><code>flooder.bytes_sent</code></td>
+                        <td>Bytes written. Formatted as B/KB/MB.</td>
+                    </tr>
+                    <tr>
+                        <td>Time</td>
+                        <td><code>time.time() - start_time</code></td>
+                        <td>Wall-clock duration. <code>Xm Ys</code> format.</td>
+                    </tr>
+                </table>
+
+                <h3>Monitor indicators</h3>
+                <ul>
+                    <li>
+                        <strong>ICMP</strong> -- ON or OFF. Toggleable via
+                        command palette.
+                    </li>
+                    <li>
+                        <strong>TCP</strong> -- ON or OFF. Toggleable via
+                        command palette.
+                    </li>
+                </ul>
+
+                <h2 id="tabs">Multi-Tab Sessions</h2>
+
+                <p>
+                    TabbedContent widget with up to 4 simultaneous test tabs.
+                    Each tab is fully independent: its own Flooder, ping
+                    subprocess, TCP probe loop, stats timer, and log buffers.
+                </p>
+
+                <h3>Tab lifecycle</h3>
+                <ol>
+                    <li>
+                        Press <code>Ctrl+N</code> or use "New Test" from the
+                        palette
+                    </li>
+                    <li>SetupModal opens as an overlay</li>
+                    <li>Enter target, ports, bots. Submit.</li>
+                    <li>New TestTabPane created with a TestPanel inside</li>
+                    <li>Tab becomes active immediately</li>
+                    <li>Flood, ICMP, and TCP monitors start on mount</li>
+                </ol>
+
+                <h3>Tab labels</h3>
+                <p>
+                    Show the target IP and primary port. Spinner animation
+                    (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) at 10 fps while running. Checkmark on
+                    completion.
+                </p>
+                <ul>
+                    <li>Running: <code>⠹ 178.79.134.182:80</code></li>
+                    <li>Complete: <code>✓ 178.79.134.182:80</code></li>
+                    <li>
+                        Multiple ports: <code>⠹ 178.79.134.182 (80,443)</code>
+                    </li>
+                </ul>
+
+                <h3>Closing tabs</h3>
+                <p>
+                    <code>Ctrl+W</code> or "Close Tab" command. Stops the
+                    flooder, kills ping, stops stats timer, removes the pane.
+                </p>
+
+                <h3>Tab limit</h3>
+                <p>Maximum 4. Warning notification if you try to open a 5th.</p>
+
+                <h3>Background behavior</h3>
+                <p>
+                    Inactive tabs keep running. TabbedContent hides panes via
+                    CSS but does not unmount them. Workers, subprocesses, and
+                    timers continue in all tabs simultaneously.
+                </p>
+
+                <h2 id="palette">Command Palette</h2>
+
+                <p>
+                    <code>Ctrl+P</code> anywhere. Fuzzy-search. Includes Textual
+                    system commands (change theme, quit) plus 11
+                    DOSping-specific commands:
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Command</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                    </tr>
+                    <tr>
+                        <td>New Test</td>
+                        <td>Opens SetupModal</td>
+                        <td>Same as <code>Ctrl+N</code>. Blocked at 4 tabs.</td>
+                    </tr>
+                    <tr>
+                        <td>Stop Flood</td>
+                        <td>Stops the active flood</td>
+                        <td>
+                            Sets stop flag. Running coroutines exit early. KITT
+                            scanner halts.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Reset Current Test</td>
+                        <td>Full reset</td>
+                        <td>
+                            Stops flood, kills ping, clears logs, resets
+                            progress bar, restarts KITT scanner, re-launches
+                            flood and ping with same config.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Export Log</td>
+                        <td>Saves to .txt</td>
+                        <td>
+                            Writes
+                            <code
+                                >dosping_&lt;IP&gt;_&lt;timestamp&gt;.txt</code
+                            >
+                            to cwd. Strips Rich markup. Includes config, flood
+                            log, connectivity log.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Clear Flood Log</td>
+                        <td>Clears left panel</td>
+                        <td>
+                            Calls <code>RichLog.clear()</code>. Internal buffer
+                            for export is unaffected.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Clear Ping Log</td>
+                        <td>Clears center panel</td>
+                        <td>Same for connectivity log.</td>
+                    </tr>
+                    <tr>
+                        <td>Toggle ICMP Monitor</td>
+                        <td>Enable/disable ICMP</td>
+                        <td>
+                            Kills ping subprocess when off. ICMP loop sleeps
+                            until re-enabled.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Toggle TCP Monitor</td>
+                        <td>Enable/disable TCP</td>
+                        <td>
+                            TCP loop sleeps instead of probing. Does not affect
+                            the flood.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Close Tab</td>
+                        <td>Closes active tab</td>
+                        <td>Same as <code>Ctrl+W</code>.</td>
+                    </tr>
+                    <tr>
+                        <td>Open Documentation</td>
+                        <td>Opens this page</td>
+                        <td>
+                            Uses <code>webbrowser.open()</code> on
+                            <code>docs/index.html</code>.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Open Terminal</td>
+                        <td>System terminal</td>
+                        <td>
+                            Windows: <code>start cmd.exe</code>. macOS:
+                            <code>open -a Terminal</code>. Linux: tries
+                            gnome-terminal, xfce4-terminal, konsole, xterm.
+                        </td>
+                    </tr>
+                </table>
+
+                <h3>Internals</h3>
+                <p>
+                    <code>DOSPingCommandProvider</code> extends Textual's
+                    <code>Provider</code>. <code>search()</code> uses
+                    <code>self.matcher(query)</code> for fuzzy matching. Each
+                    command yields a <code>Hit</code> with score, highlighted
+                    text, and async callback. Callbacks delegate to
+                    <code>SessionScreen</code> or
+                    <code>TestPanel</code> methods.
+                </p>
+
+                <h2 id="shortcuts">Keyboard Shortcuts</h2>
+
+                <table>
+                    <tr>
+                        <th>Key</th>
+                        <th>Action</th>
+                        <th>Context</th>
+                        <th>Notes</th>
+                    </tr>
+                    <tr>
+                        <td><code>Ctrl+P</code></td>
+                        <td>Command palette</td>
+                        <td>Anywhere</td>
+                        <td>Built-in Textual binding.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Ctrl+N</code></td>
+                        <td>New test tab</td>
+                        <td>Session</td>
+                        <td>Blocked at 4 tabs.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Ctrl+W</code></td>
+                        <td>Close tab</td>
+                        <td>Session</td>
+                        <td>Full cleanup.</td>
+                    </tr>
+                    <tr>
+                        <td><code>s</code></td>
+                        <td>Stop flood</td>
+                        <td>Session</td>
+                        <td>Won't trigger in Input fields.</td>
+                    </tr>
+                    <tr>
+                        <td><code>q</code></td>
+                        <td>Quit</td>
+                        <td>Session</td>
+                        <td>Saves stats. Prints exit summary.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Escape</code></td>
+                        <td>Cancel</td>
+                        <td>Setup modal</td>
+                        <td>No tab created.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Enter</code></td>
+                        <td>Next / Submit</td>
+                        <td>Setup modal</td>
+                        <td>IP > Ports > Bots > Submit.</td>
+                    </tr>
+                </table>
+
+                <div class="note">
+                    <strong>Input safety:</strong> <code>s</code> and
+                    <code>q</code> do not trigger when a text Input has focus.
+                    You can type "s" in an IP field safely.
+                </div>
+
+                <h2 id="export">Log Export</h2>
+
+                <p>
+                    "Export Log" from the palette. Active tab's logs saved to
+                    plain text.
+                </p>
+
+                <h3>File naming</h3>
+                <pre><code>dosping_&lt;IP&gt;_&lt;YYYYMMDD_HHMMSS&gt;.txt
 
 Example: dosping_178.79.134.182_20260522_143022.txt</code></pre>
 
-            <h3>File contents</h3>
-<pre><code>DOSping Session Log
+                <h3>File contents</h3>
+                <pre><code>DOSping Session Log
 Target: 178.79.134.182
 Ports: 80, 443
 Bots: 200
@@ -770,220 +1714,559 @@ CONNECTIVITY LOG:
 ------------------------------
 (ping/TCP lines, markup stripped)</code></pre>
 
-            <p>Log buffer stores every line since test start (or last reset). Clearing the display does not clear the buffer. Rich tags stripped via <code>Text.from_markup(line).plain</code>. Files written to cwd.</p>
+                <p>
+                    Log buffer stores every line since test start (or last
+                    reset). Clearing the display does not clear the buffer. Rich
+                    tags stripped via <code>Text.from_markup(line).plain</code>.
+                    Files written to cwd.
+                </p>
 
-            <h2 id="themes">Themes</h2>
+                <h2 id="themes">Themes</h2>
 
-            <p>DOSping ships with "DOSping Matrix": monochrome dark palette with amber, sage, olive, brick on near-black.</p>
+                <p>
+                    DOSping ships with "DOSping Matrix": monochrome dark palette
+                    with amber, sage, olive, brick on near-black.
+                </p>
 
-            <h3>Color palette</h3>
-            <table>
-                <tr><th>Token</th><th>Hex</th><th>Usage</th></tr>
-                <tr><td>Background</td><td><code>#0b0b0b</code></td><td>Screen bg</td></tr>
-                <tr><td>Surface</td><td><code>#111110</code></td><td>Header, footer, setup box</td></tr>
-                <tr><td>Panel</td><td><code>#0e0e0c</code></td><td>Log backgrounds</td></tr>
-                <tr><td>Amber</td><td><code>#c8a050</code></td><td>Primary accent, KITT glow</td></tr>
-                <tr><td>Sage</td><td><code>#7a9a6a</code></td><td>Secondary accent</td></tr>
-                <tr><td>Olive</td><td><code>#9a8a40</code></td><td>Warnings, timeouts</td></tr>
-                <tr><td>Brick</td><td><code>#8a5a4a</code></td><td>Errors, failures</td></tr>
-                <tr><td>Muted</td><td><code>#555550</code></td><td>Labels, hints</td></tr>
-                <tr><td>Text</td><td><code>#c8c8b8</code></td><td>Primary text</td></tr>
-            </table>
+                <h3>Color palette</h3>
+                <table>
+                    <tr>
+                        <th>Token</th>
+                        <th>Hex</th>
+                        <th>Usage</th>
+                    </tr>
+                    <tr>
+                        <td>Background</td>
+                        <td><code>#0b0b0b</code></td>
+                        <td>Screen bg</td>
+                    </tr>
+                    <tr>
+                        <td>Surface</td>
+                        <td><code>#111110</code></td>
+                        <td>Header, footer, setup box</td>
+                    </tr>
+                    <tr>
+                        <td>Panel</td>
+                        <td><code>#0e0e0c</code></td>
+                        <td>Log backgrounds</td>
+                    </tr>
+                    <tr>
+                        <td>Amber</td>
+                        <td><code>#c8a050</code></td>
+                        <td>Primary accent, KITT glow</td>
+                    </tr>
+                    <tr>
+                        <td>Sage</td>
+                        <td><code>#7a9a6a</code></td>
+                        <td>Secondary accent</td>
+                    </tr>
+                    <tr>
+                        <td>Olive</td>
+                        <td><code>#9a8a40</code></td>
+                        <td>Warnings, timeouts</td>
+                    </tr>
+                    <tr>
+                        <td>Brick</td>
+                        <td><code>#8a5a4a</code></td>
+                        <td>Errors, failures</td>
+                    </tr>
+                    <tr>
+                        <td>Muted</td>
+                        <td><code>#555550</code></td>
+                        <td>Labels, hints</td>
+                    </tr>
+                    <tr>
+                        <td>Text</td>
+                        <td><code>#c8c8b8</code></td>
+                        <td>Primary text</td>
+                    </tr>
+                </table>
 
-            <h3>Switching themes</h3>
-            <ol>
-                <li><code>Ctrl+P</code></li>
-                <li>Type "theme"</li>
-                <li>Select "Change theme"</li>
-                <li>Pick from the list (nord, gruvbox, textual-dark, etc.)</li>
-            </ol>
+                <h3>Switching themes</h3>
+                <ol>
+                    <li><code>Ctrl+P</code></li>
+                    <li>Type "theme"</li>
+                    <li>Select "Change theme"</li>
+                    <li>
+                        Pick from the list (nord, gruvbox, textual-dark, etc.)
+                    </li>
+                </ol>
 
-            <p>Switching themes changes Textual design tokens. Panel borders, log colors, and stats display keep the DOSping palette (hardcoded hex, not theme variables).</p>
+                <p>
+                    Switching themes changes Textual design tokens. Panel
+                    borders, log colors, and stats display keep the DOSping
+                    palette (hardcoded hex, not theme variables).
+                </p>
 
-            <h2 id="terminal">Terminal Launcher</h2>
+                <h2 id="terminal">Terminal Launcher</h2>
 
-            <p>"Open Terminal" in the palette. Spawns a system terminal alongside DOSping for manual commands (nslookup, traceroute, curl).</p>
+                <p>
+                    "Open Terminal" in the palette. Spawns a system terminal
+                    alongside DOSping for manual commands (nslookup, traceroute,
+                    curl).
+                </p>
 
-            <table>
-                <tr><th>OS</th><th>Command</th></tr>
-                <tr><td>Windows</td><td><code>start cmd.exe</code></td></tr>
-                <tr><td>macOS</td><td><code>open -a Terminal</code></td></tr>
-                <tr><td>Linux</td><td>gnome-terminal / xfce4-terminal / konsole / xterm (first found)</td></tr>
-            </table>
+                <table>
+                    <tr>
+                        <th>OS</th>
+                        <th>Command</th>
+                    </tr>
+                    <tr>
+                        <td>Windows</td>
+                        <td><code>start cmd.exe</code></td>
+                    </tr>
+                    <tr>
+                        <td>macOS</td>
+                        <td><code>open -a Terminal</code></td>
+                    </tr>
+                    <tr>
+                        <td>Linux</td>
+                        <td>
+                            gnome-terminal / xfce4-terminal / konsole / xterm
+                            (first found)
+                        </td>
+                    </tr>
+                </table>
 
-            <h2 id="flooder">Flood Engine</h2>
+                <h2 id="flooder">Flood Engine</h2>
 
-            <p><code>Flooder</code> class in <code>flooder.py</code>. No UI dependencies. Communicates through callbacks.</p>
+                <p>
+                    <code>Flooder</code> class in <code>flooder.py</code>. No UI
+                    dependencies. Communicates through callbacks.
+                </p>
 
-            <h3>How it works</h3>
-            <ol>
-                <li><code>run()</code> creates <code>asyncio.Semaphore(50)</code></li>
-                <li>Schedules <code>_attack()</code> for each bot (0 to bots-1)</li>
-                <li>Ports assigned round-robin: <code>ports[i % len(ports)]</code></li>
-                <li><code>asyncio.gather()</code> runs all, gated by the semaphore</li>
-            </ol>
+                <h3>How it works</h3>
+                <ol>
+                    <li>
+                        <code>run()</code> creates
+                        <code>asyncio.Semaphore(50)</code>
+                    </li>
+                    <li>
+                        Schedules <code>_attack()</code> for each bot (0 to
+                        bots-1)
+                    </li>
+                    <li>
+                        Ports assigned round-robin:
+                        <code>ports[i % len(ports)]</code>
+                    </li>
+                    <li>
+                        <code>asyncio.gather()</code> runs all, gated by the
+                        semaphore
+                    </li>
+                </ol>
 
-            <h3>Single connection (_attack)</h3>
-            <ol>
-                <li>Check stop flag</li>
-                <li>Acquire semaphore (blocks at 50 concurrent)</li>
-                <li><code>asyncio.open_connection(target, port)</code> with 3s timeout</li>
-                <li>Write 1024 random bytes</li>
-                <li>Drain write buffer</li>
-                <li>Close writer</li>
-                <li>Increment <code>successful</code> + <code>bytes_sent</code></li>
-                <li>On exception: increment <code>failed</code></li>
-                <li>Record monotonic timestamp for rate calculation</li>
-                <li>Fire <code>on_progress(current, total)</code></li>
-                <li>Every 25 connections: fire <code>on_log()</code></li>
-            </ol>
+                <h3>Single connection (_attack)</h3>
+                <ol>
+                    <li>Check stop flag</li>
+                    <li>Acquire semaphore (blocks at 50 concurrent)</li>
+                    <li>
+                        <code>asyncio.open_connection(target, port)</code> with
+                        3s timeout
+                    </li>
+                    <li>Write 1024 random bytes</li>
+                    <li>Drain write buffer</li>
+                    <li>Close writer</li>
+                    <li>
+                        Increment <code>successful</code> +
+                        <code>bytes_sent</code>
+                    </li>
+                    <li>On exception: increment <code>failed</code></li>
+                    <li>Record monotonic timestamp for rate calculation</li>
+                    <li>Fire <code>on_progress(current, total)</code></li>
+                    <li>Every 25 connections: fire <code>on_log()</code></li>
+                </ol>
 
-            <h3>Rate calculation</h3>
-            <p><code>connections_per_sec(window=5.0)</code> counts timestamps in the last 5 seconds, divides by window. Old timestamps pruned each call. Smooth rolling average.</p>
+                <h3>Rate calculation</h3>
+                <p>
+                    <code>connections_per_sec(window=5.0)</code> counts
+                    timestamps in the last 5 seconds, divides by window. Old
+                    timestamps pruned each call. Smooth rolling average.
+                </p>
 
-            <h3>Stopping</h3>
-            <p><code>stop()</code> sets <code>_stopped</code>. Each coroutine checks before semaphore acquisition and before connecting. Running connections finish normally. Flood drains in seconds.</p>
+                <h3>Stopping</h3>
+                <p>
+                    <code>stop()</code> sets <code>_stopped</code>. Each
+                    coroutine checks before semaphore acquisition and before
+                    connecting. Running connections finish normally. Flood
+                    drains in seconds.
+                </p>
 
-            <h2 id="icmp">ICMP Monitor</h2>
+                <h2 id="icmp">ICMP Monitor</h2>
 
-            <p>Async worker in TestPanel. Spawns system <code>ping</code> as a subprocess, streams stdout.</p>
+                <p>
+                    Async worker in TestPanel. Spawns system
+                    <code>ping</code> as a subprocess, streams stdout.
+                </p>
 
-            <h3>Platform commands</h3>
-            <table>
-                <tr><th>OS</th><th>Command</th><th>Behavior</th></tr>
-                <tr><td>Windows</td><td><code>ping -t &lt;target&gt;</code></td><td>Continuous</td></tr>
-                <tr><td>Linux/macOS</td><td><code>ping &lt;target&gt;</code></td><td>Continuous</td></tr>
-            </table>
+                <h3>Platform commands</h3>
+                <table>
+                    <tr>
+                        <th>OS</th>
+                        <th>Command</th>
+                        <th>Behavior</th>
+                    </tr>
+                    <tr>
+                        <td>Windows</td>
+                        <td><code>ping -t &lt;target&gt;</code></td>
+                        <td>Continuous</td>
+                    </tr>
+                    <tr>
+                        <td>Linux/macOS</td>
+                        <td><code>ping &lt;target&gt;</code></td>
+                        <td>Continuous</td>
+                    </tr>
+                </table>
 
-            <h3>Line classification</h3>
-            <ul>
-                <li>"reply from" or "bytes from" = success</li>
-                <li>"timed out" or "unreachable" = timeout (note: ICMP may be blocked)</li>
-                <li>"pinging" or "ping" = informational header</li>
-                <li>Everything else = muted</li>
-            </ul>
+                <h3>Line classification</h3>
+                <ul>
+                    <li>"reply from" or "bytes from" = success</li>
+                    <li>
+                        "timed out" or "unreachable" = timeout (note: ICMP may
+                        be blocked)
+                    </li>
+                    <li>"pinging" or "ping" = informational header</li>
+                    <li>Everything else = muted</li>
+                </ul>
 
-            <h3>Toggle</h3>
-            <p>Off: ping subprocess killed, loop sleeps. On: new subprocess starts automatically.</p>
+                <h3>Toggle</h3>
+                <p>
+                    Off: ping subprocess killed, loop sleeps. On: new subprocess
+                    starts automatically.
+                </p>
 
-            <h2 id="tcp">TCP Probe Monitor</h2>
+                <h2 id="tcp">TCP Probe Monitor</h2>
 
-            <p>Async worker alongside ICMP. Probes each target port every 2 seconds. 3-second timeout.</p>
+                <p>
+                    Async worker alongside ICMP. Probes each target port every 2
+                    seconds. 3-second timeout.
+                </p>
 
-            <h3>Results</h3>
-            <table>
-                <tr><th>Result</th><th>Symbol</th><th>Meaning</th></tr>
-                <tr><td>OPEN</td><td><code>●</code></td><td>Connection accepted. Includes latency (ms).</td></tr>
-                <tr><td>TIMEOUT</td><td><code>✖</code></td><td>3s elapsed. Port may be filtered.</td></tr>
-                <tr><td>REFUSED</td><td><code>↩</code></td><td>RST received. Host reachable, port closed.</td></tr>
-                <tr><td>Error</td><td><code>✖</code></td><td>Other OS error.</td></tr>
-            </table>
+                <h3>Results</h3>
+                <table>
+                    <tr>
+                        <th>Result</th>
+                        <th>Symbol</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td>OPEN</td>
+                        <td><code>●</code></td>
+                        <td>Connection accepted. Includes latency (ms).</td>
+                    </tr>
+                    <tr>
+                        <td>TIMEOUT</td>
+                        <td><code>✖</code></td>
+                        <td>3s elapsed. Port may be filtered.</td>
+                    </tr>
+                    <tr>
+                        <td>REFUSED</td>
+                        <td><code>↩</code></td>
+                        <td>RST received. Host reachable, port closed.</td>
+                    </tr>
+                    <tr>
+                        <td>Error</td>
+                        <td><code>✖</code></td>
+                        <td>Other OS error.</td>
+                    </tr>
+                </table>
 
-            <h3>vs. the flood</h3>
-            <p>TCP probe is read-only: opens, closes, measures latency. No payload. The flood sends 1 KB per connection. They run on separate workers.</p>
+                <h3>vs. the flood</h3>
+                <p>
+                    TCP probe is read-only: opens, closes, measures latency. No
+                    payload. The flood sends 1 KB per connection. They run on
+                    separate workers.
+                </p>
 
-            <h3>Toggle</h3>
-            <p>Off: loop sleeps. No subprocess involved, so toggle is instant.</p>
+                <h3>Toggle</h3>
+                <p>
+                    Off: loop sleeps. No subprocess involved, so toggle is
+                    instant.
+                </p>
 
-            <h2 id="exit-summary">Exit Summary</h2>
+                <h2 id="exit-summary">Exit Summary</h2>
 
-            <p>Press <code>q</code>. Stats captured from the active tab. Rich table printed after TUI exits.</p>
+                <p>
+                    Press <code>q</code>. Stats captured from the active tab.
+                    Rich table printed after TUI exits.
+                </p>
 
-            <table>
-                <tr><th>Field</th><th>Source</th></tr>
-                <tr><td>Target</td><td>IP from setup</td></tr>
-                <tr><td>Ports</td><td>Port list from setup</td></tr>
-                <tr><td>Bots</td><td>Bot count</td></tr>
-                <tr><td>Duration</td><td>Wall-clock time</td></tr>
-                <tr><td>Hits</td><td><code>flooder.successful</code></td></tr>
-                <tr><td>Misses</td><td><code>flooder.failed</code></td></tr>
-                <tr><td>Total</td><td>hits + misses</td></tr>
-                <tr><td>Success Rate</td><td>20-char bar + %. Color-coded.</td></tr>
-                <tr><td>Status</td><td>COMPLETED / STOPPED BY USER / PARTIAL</td></tr>
-            </table>
+                <table>
+                    <tr>
+                        <th>Field</th>
+                        <th>Source</th>
+                    </tr>
+                    <tr>
+                        <td>Target</td>
+                        <td>IP from setup</td>
+                    </tr>
+                    <tr>
+                        <td>Ports</td>
+                        <td>Port list from setup</td>
+                    </tr>
+                    <tr>
+                        <td>Bots</td>
+                        <td>Bot count</td>
+                    </tr>
+                    <tr>
+                        <td>Duration</td>
+                        <td>Wall-clock time</td>
+                    </tr>
+                    <tr>
+                        <td>Hits</td>
+                        <td><code>flooder.successful</code></td>
+                    </tr>
+                    <tr>
+                        <td>Misses</td>
+                        <td><code>flooder.failed</code></td>
+                    </tr>
+                    <tr>
+                        <td>Total</td>
+                        <td>hits + misses</td>
+                    </tr>
+                    <tr>
+                        <td>Success Rate</td>
+                        <td>20-char bar + %. Color-coded.</td>
+                    </tr>
+                    <tr>
+                        <td>Status</td>
+                        <td>COMPLETED / STOPPED BY USER / PARTIAL</td>
+                    </tr>
+                </table>
 
-            <h2 id="files">Project Files</h2>
+                <h2 id="files">Project Files</h2>
 
-            <table>
-                <tr><th>File</th><th>Purpose</th></tr>
-                <tr><td><code>dosping.py</code></td><td>Main TUI. Screens, widgets, command palette, tabs, exit summary.</td></tr>
-                <tr><td><code>flooder.py</code></td><td>Async TCP flood engine. Decoupled from UI.</td></tr>
-                <tr><td><code>requirements.txt</code></td><td>Dependencies: textual, rich, requests.</td></tr>
-                <tr><td><code>setup.bat</code></td><td>Windows installer. Auto-clones if run standalone.</td></tr>
-                <tr><td><code>setup.sh</code></td><td>Linux/macOS installer. Auto-clones. Spinner animation.</td></tr>
-                <tr><td><code>README.md</code></td><td>At-a-glance overview.</td></tr>
-                <tr><td><code>docs/index.html</code></td><td>This page.</td></tr>
-            </table>
+                <table>
+                    <tr>
+                        <th>File</th>
+                        <th>Purpose</th>
+                    </tr>
+                    <tr>
+                        <td><code>dosping.py</code></td>
+                        <td>
+                            Main TUI. Screens, widgets, command palette, tabs,
+                            exit summary.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>flooder.py</code></td>
+                        <td>Async TCP flood engine. Decoupled from UI.</td>
+                    </tr>
+                    <tr>
+                        <td><code>requirements.txt</code></td>
+                        <td>Dependencies: textual, rich, requests.</td>
+                    </tr>
+                    <tr>
+                        <td><code>setup.bat</code></td>
+                        <td>
+                            Windows installer. Auto-clones if run standalone.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>setup.sh</code></td>
+                        <td>
+                            Linux/macOS installer. Auto-clones. Spinner
+                            animation.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>README.md</code></td>
+                        <td>At-a-glance overview.</td>
+                    </tr>
+                    <tr>
+                        <td><code>docs/index.html</code></td>
+                        <td>This page.</td>
+                    </tr>
+                </table>
 
-            <h2 id="troubleshooting">Troubleshooting</h2>
+                <h2 id="troubleshooting">Troubleshooting</h2>
 
-            <h3>"ICMP timed out" but "TCP OPEN"</h3>
-            <p>Normal. Many hosts block ICMP at the firewall. TCP probe is the accurate indicator.</p>
+                <h3>"ICMP timed out" but "TCP OPEN"</h3>
+                <p>
+                    Normal. Many hosts block ICMP at the firewall. TCP probe is
+                    the accurate indicator.
+                </p>
 
-            <h3>All connections fail (100% miss rate)</h3>
-            <ul>
-                <li>Check if the target is reachable (<code>ping</code> from a normal terminal)</li>
-                <li>Verify the port is open (<code>telnet</code> or <code>nmap</code>)</li>
-                <li>ISP or firewall may be blocking outbound connections</li>
-                <li>Target rate limiting or IPS dropping connections</li>
-            </ul>
+                <h3>All connections fail (100% miss rate)</h3>
+                <ul>
+                    <li>
+                        Check if the target is reachable (<code>ping</code> from
+                        a normal terminal)
+                    </li>
+                    <li>
+                        Verify the port is open (<code>telnet</code> or
+                        <code>nmap</code>)
+                    </li>
+                    <li>
+                        ISP or firewall may be blocking outbound connections
+                    </li>
+                    <li>Target rate limiting or IPS dropping connections</li>
+                </ul>
 
-            <h3>CSS error in stylesheet</h3>
-            <p>DOSping uses f-string hex injection into CSS (not Theme.variables). Check color format is <code>#rrggbb</code>, no alpha, no <code>rgb()</code>.</p>
+                <h3>CSS error in stylesheet</h3>
+                <p>
+                    DOSping uses f-string hex injection into CSS (not
+                    Theme.variables). Check color format is
+                    <code>#rrggbb</code>, no alpha, no <code>rgb()</code>.
+                </p>
 
-            <h3>"Max 4 concurrent tests"</h3>
-            <p>Close an existing tab with <code>Ctrl+W</code> first.</p>
+                <h3>"Max 4 concurrent tests"</h3>
+                <p>Close an existing tab with <code>Ctrl+W</code> first.</p>
 
-            <h3>setup.sh: permission denied</h3>
-            <p>Run with <code>bash setup.sh</code> explicitly, or <code>chmod +x setup.sh && ./setup.sh</code>.</p>
+                <h3>setup.sh: permission denied</h3>
+                <p>
+                    Run with <code>bash setup.sh</code> explicitly, or
+                    <code>chmod +x setup.sh && ./setup.sh</code>.
+                </p>
 
-            <h3>Python not found</h3>
-            <p>Install Python 3.12+ from <a href="https://python.org">python.org</a>. Windows: check "Add to PATH". Linux: <code>apt install python3</code> or <code>pacman -S python</code>.</p>
+                <h3>Python not found</h3>
+                <p>
+                    Install Python 3.12+ from
+                    <a href="https://python.org">python.org</a>. Windows: check
+                    "Add to PATH". Linux: <code>apt install python3</code> or
+                    <code>pacman -S python</code>.
+                </p>
 
-            <div class="info">
-                <strong>Still stuck?</strong> Open an issue at <a href="https://github.com/debug-cli/dosping/issues">github.com/debug-cli/dosping/issues</a> with OS, Python version, and full error output.
-            </div>
+                <div class="info">
+                    <strong>Still stuck?</strong> Open an issue at
+                    <a href="https://github.com/debug-cli/dosping/issues"
+                        >github.com/debug-cli/dosping/issues</a
+                    >
+                    with OS, Python version, and full error output.
+                </div>
 
-        </main>
-    </div>
+                <h2 id="changelog">Changelog</h2>
 
-    <script>
-        const sections = document.querySelectorAll('h2[id]');
-        const navLinks = document.querySelectorAll('nav a[href^="#"]');
+                <table>
+                    <tr>
+                        <th>Version</th>
+                        <th>Date</th>
+                        <th>Changes</th>
+                    </tr>
+                    <tr>
+                        <td><strong>v3.5</strong></td>
+                        <td>2026-06-22</td>
+                        <td>
+                            <ul>
+                                <li>
+                                    <strong>Home Screen</strong> — New landing page after splash with glitching logo header (left solid, right animated), two large selectable tiles (Port Scanner/Attacker)
+                                </li>
+                                <li>
+                                    <strong>Port Scanner Mode</strong> — New scan workflow with custom async Python engine (no nmap), protocol detection, device fingerprinting, banner grabbing, latency measurement
+                                </li>
+                                <li>
+                                    <strong>Scanner Engine (scanner.py)</strong> — Pure Python async port scanner with ScanResult dataclass, PortScannerEngine/NetworkScanEngine classes, intelligent port range parsing
+                                </li>
+                                <li>
+                                    <strong>Settings Modal</strong> — New configuration screen for view mode selection, animation toggles (Matrix/KITT), theme switching (Matrix/Blue/Red), accessible from Home Screen
+                                </li>
+                                <li>
+                                    <strong>View Modes</strong> — Three display profiles: SKID (minimal, no jargon), ADVANCED (standard panels + latency graph), IT (all panels, all metrics, raw data)
+                                </li>
+                                <li>
+                                    <strong>Theme System</strong> — Multiple color schemes (THEME_DOSPING_MATRIX, THEME_DOSPING_BLUE, THEME_DOSPING_RED) with consistent palette
+                                </li>
+                                <li>
+                                    <strong>Enhanced Setup</strong> — Improved setup.sh and setup.bat with better environment detection and dependency management
+                                </li>
+                                <li>
+                                    <strong>SessionMode Enum</strong> — Distinguish between ATTACK and SCAN workflows for proper screen routing
+                                </li>
+                                <li>
+                                    <strong>Documentation</strong> — Complete v3.5 reference with Home Screen, Settings, Port Scanner, and Scanner Engine sections
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>3.0</strong></td>
+                        <td>2026-06-15</td>
+                        <td>
+                            <ul>
+                                <li>
+                                    Added View Modes system (Skid, Advanced, IT)
+                                    with <code>ViewMode</code> enum and cycling
+                                    logic
+                                </li>
+                                <li>
+                                    Added <code>on_detail</code> callback to
+                                    Flooder for per-connection inspection (port,
+                                    status, latency, bytes, error)
+                                </li>
+                                <li>
+                                    Updated all version strings and branding to
+                                    v3.0
+                                </li>
+                                <li>
+                                    Documentation updated with view modes
+                                    section and changelog
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>2.0</strong></td>
+                        <td>2026-05-22</td>
+                        <td>
+                            <ul>
+                                <li>Initial public release</li>
+                                <li>Multi-tab sessions (up to 4)</li>
+                                <li>
+                                    Three-panel layout: flood log, connectivity
+                                    monitor, stats sidebar
+                                </li>
+                                <li>Command palette with 11 commands</li>
+                                <li>ICMP and TCP monitor toggles</li>
+                                <li>Log export</li>
+                                <li>Matrix splash screen with KITT scanner</li>
+                                <li>Exit session summary</li>
+                                <li>
+                                    Cross-platform support (Windows, Linux,
+                                    macOS)
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                </table>
+            </main>
+        </div>
 
-        window.addEventListener('scroll', () => {
-            let current = '';
-            sections.forEach(section => {
-                if (window.scrollY >= section.offsetTop - 100) {
-                    current = section.getAttribute('id');
-                }
-            });
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('href') === '#' + current) {
-                    link.classList.add('active');
-                }
-            });
-        });
+        <script>
+            const sections = document.querySelectorAll("h2[id]");
+            const navLinks = document.querySelectorAll('nav a[href^="#"]');
 
-        document.querySelectorAll('pre').forEach(block => {
-            const btn = document.createElement('button');
-            btn.className = 'copy-btn';
-            btn.textContent = 'COPY';
-            btn.addEventListener('click', () => {
-                const code = block.querySelector('code');
-                const text = (code || block).textContent;
-                navigator.clipboard.writeText(text).then(() => {
-                    btn.textContent = 'COPIED';
-                    btn.classList.add('copied');
-                    setTimeout(() => {
-                        btn.textContent = 'COPY';
-                        btn.classList.remove('copied');
-                    }, 1500);
+            window.addEventListener("scroll", () => {
+                let current = "";
+                sections.forEach((section) => {
+                    if (window.scrollY >= section.offsetTop - 100) {
+                        current = section.getAttribute("id");
+                    }
+                });
+                navLinks.forEach((link) => {
+                    link.classList.remove("active");
+                    if (link.getAttribute("href") === "#" + current) {
+                        link.classList.add("active");
+                    }
                 });
             });
-            block.appendChild(btn);
-        });
-    </script>
-</body>
+
+            document.querySelectorAll("pre").forEach((block) => {
+                const btn = document.createElement("button");
+                btn.className = "copy-btn";
+                btn.textContent = "COPY";
+                btn.addEventListener("click", () => {
+                    const code = block.querySelector("code");
+                    const text = (code || block).textContent;
+                    navigator.clipboard.writeText(text).then(() => {
+                        btn.textContent = "COPIED";
+                        btn.classList.add("copied");
+                        setTimeout(() => {
+                            btn.textContent = "COPY";
+                            btn.classList.remove("copied");
+                        }, 1500);
+                    });
+                });
+                block.appendChild(btn);
+            });
+        </script>
+    </body>
 </html>

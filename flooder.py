@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════
 #  flooder.py  —  Async TCP Flood Engine
 # ═══════════════════════════════════════════════════════════════
-#  Part of DOSping v2.0  —  Network Stress Testing TUI
+#  Part of DOSping v3.0  —  Network Stress Testing TUI
 #
 #  This module handles concurrent TCP connection flooding.
 #  Decoupled from the UI so any front-end can drive it.
@@ -61,6 +61,7 @@ class Flooder:
         concurrency: int = 50,
         on_progress: Optional[Callable] = None,
         on_log: Optional[Callable] = None,
+        on_detail: Optional[Callable] = None,
     ):
         self.target = target
         self.ports = ports
@@ -68,6 +69,7 @@ class Flooder:
         self.concurrency = concurrency
         self.on_progress = on_progress
         self.on_log = on_log
+        self.on_detail = on_detail
 
         # Counters (reset at the start of each run)
         self.successful: int = 0
@@ -142,6 +144,11 @@ class Flooder:
             if self._stopped:
                 return
 
+            t_start = time.monotonic()
+            status = "OK"
+            sent = 0
+            error_msg = ""
+
             try:
                 reader, writer = await asyncio.wait_for(
                     asyncio.open_connection(self.target, port),
@@ -151,23 +158,45 @@ class Flooder:
                 payload = random.randbytes(1024)
                 writer.write(payload)
                 await writer.drain()
-                self.bytes_sent += len(payload)
+                sent = len(payload)
+                self.bytes_sent += sent
 
                 writer.close()
                 await writer.wait_closed()
                 self.successful += 1
 
-            except (
-                asyncio.TimeoutError,
-                asyncio.CancelledError,
-                OSError,
-                ConnectionError,
-                Exception,
-            ):
+            except asyncio.TimeoutError:
                 self.failed += 1
+                status = "TIMEOUT"
+                error_msg = "Connection timed out"
+            except asyncio.CancelledError:
+                self.failed += 1
+                status = "CANCEL"
+                error_msg = "Cancelled"
+            except ConnectionRefusedError:
+                self.failed += 1
+                status = "REFUSED"
+                error_msg = "Connection refused"
+            except OSError as e:
+                self.failed += 1
+                status = "ERROR"
+                error_msg = str(e)
+            except Exception as e:
+                self.failed += 1
+                status = "ERROR"
+                error_msg = str(e)
+
+            latency_ms = (time.monotonic() - t_start) * 1000
 
             # Record timestamp for rate calculation
             self._conn_times.append(time.monotonic())
+
+            # ── Detail callback for packet inspector ─────────
+            if self.on_detail:
+                try:
+                    self.on_detail(port, status, latency_ms, sent, error_msg)
+                except Exception:
+                    pass
 
             # ── Progress reporting ───────────────────────────
             total = self.successful + self.failed

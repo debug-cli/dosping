@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════
-#  DOSping v2.0 — Quick Start Installer (Linux / macOS)
+#  DOSping v3.5 — Quick Start Installer (Linux / macOS)
 # ═══════════════════════════════════════════════════════════
 #  Usage:  bash setup.sh
 # ═══════════════════════════════════════════════════════════
@@ -27,13 +27,14 @@ BOLD='\033[1m'
 RESET='\033[0m'
 
 # ── Spinner helper ───────────────────────────────────────
+# Uses ASCII-only |/-+ frames so any terminal font works.
 spin() {
     local pid=$1
     local msg=$2
-    local frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local frames='|/-+'
     local i=0
     while kill -0 "$pid" 2>/dev/null; do
-        printf "\r  ${AMBER}${frames:i%${#frames}:1}${RESET} %s" "$msg"
+        printf "\r  ${AMBER}${frames:$((i%4)):1}${RESET} %s" "$msg"
         i=$((i + 1))
         sleep 0.1
     done
@@ -49,7 +50,7 @@ spin() {
 
 echo ""
 echo -e "  ${BOLD}════════════════════════════════════════${RESET}"
-echo -e "  ${BOLD}${AMBER} DOSping v2.0 — Quick Start Installer${RESET}"
+echo -e "  ${BOLD}${AMBER} DOSping v3.5 — Quick Start Installer${RESET}"
 echo -e "  ${BOLD}════════════════════════════════════════${RESET}"
 echo ""
 echo -e "  ${DIM}For penetration testing / education only.${RESET}"
