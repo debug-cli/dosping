@@ -23,8 +23,6 @@ Always use a VPN when unauthorized, watch out for honeypots.
 
 A terminal-based network stress testing tool. Floods a target with concurrent TCP connections while monitoring connectivity through ICMP ping and TCP port probes in real time. Three-panel split layout. Multi-tab sessions. Built with Python, Textual, and asyncio.
 
-**DOSping 3.7.1 “Code Red”** adds **Advanced Settings** — open the full editor in-app (`⚙ SETTINGS → Advanced → Open…`) or standalone (`python settings.py`) — with **live theme switching**, confirmation dialogs, change toasts, and an About panel. On top of v3.5's foundations: a full **configuration system** (`config.json`), a **monochrome/red theme** with a **fully transparent background** (acrylic/blur-friendly), **strength presets**, and **glitching ASCII art** on the home screen.  
-New in 3.7.1: a verbose **event log** (`logs/dosping-YYYY-MM-DD.log`) recording every significant action — see [Event log](#event-log) below.
 
 📖 **[Full documentation →](https://dosping-docs.vercel.app)**
 
