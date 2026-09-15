@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════
 #  flooder.py  —  Async TCP Flood Engine
 # ═══════════════════════════════════════════════════════════════
-#  Part of DOSping 3.7.0  —  Network Stress Testing TUI
+#  Part of DOSping 3.7.1  —  Network Stress Testing TUI
 #
 #  This module handles concurrent TCP connection flooding.
 #  Decoupled from the UI so any front-end can drive it.
@@ -25,6 +25,25 @@ import asyncio
 import random
 import time
 from typing import Callable, Optional, List
+
+try:
+    import eventlog
+except Exception:  # engine must work even if the logger is missing
+    eventlog = None  # type: ignore[assignment]
+
+
+# Error reason classes for flood.error_sample / flood.stats
+def _error_class(exc: BaseException) -> str:
+    if isinstance(exc, ConnectionRefusedError):
+        return "refused"
+    if isinstance(exc, asyncio.TimeoutError):
+        return "timeout"
+    if isinstance(exc, asyncio.CancelledError):
+        return "cancel"
+    name = type(exc).__name__
+    if name == "gaierror":  # socket.gaierror — DNS resolution failure
+        return "dns"
+    return "other"
 
 
 class Flooder:
@@ -67,6 +86,8 @@ class Flooder:
         on_progress: Optional[Callable] = None,
         on_log: Optional[Callable] = None,
         on_detail: Optional[Callable] = None,
+        session_id: Optional[str] = None,
+        stats_interval: float = 10.0,
     ):
         self.target = target
         self.ports = ports
@@ -80,12 +101,18 @@ class Flooder:
         self.on_progress = on_progress
         self.on_log = on_log
         self.on_detail = on_detail
+        self.session_id = session_id
+        self.stats_interval = max(1.0, float(stats_interval))
 
         # Counters (reset at the start of each run)
         self.successful: int = 0
         self.failed: int = 0
         self.bytes_sent: int = 0
         self._stopped: bool = False
+
+        # Error accounting per reason class (refused/timeout/cancel/dns/other)
+        self._error_counts: dict[str, int] = {}
+        self._error_samples: dict[str, str] = {}
 
         # Rate tracking: monotonic timestamps of completed attempts
         self._conn_times: list[float] = []
@@ -101,6 +128,18 @@ class Flooder:
         self.bytes_sent = 0
         self._stopped = False
         self._conn_times.clear()
+        self._error_counts.clear()
+        self._error_samples.clear()
+
+        if eventlog is not None:
+            eventlog.log_event(
+                "flood", "flood.workers_spawned", session=self.session_id,
+                bots=self.bots, concurrency=self.concurrency,
+                packet_size=eventlog._fmt_bytes(self.packet_size),
+                conn_delay=eventlog._fmt_duration(self.conn_delay),
+                reuse_payload=self.reuse_payload,
+                ports=",".join(map(str, self.ports)),
+            )
 
         if self.on_log:
             self.on_log(
@@ -119,7 +158,11 @@ class Flooder:
             if self.conn_delay > 0:
                 await asyncio.sleep(self.conn_delay)  # advanced.conn_delay
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+        reporter = asyncio.create_task(self._stats_reporter())
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            reporter.cancel()
 
         if self.on_log:
             if self._stopped:
@@ -130,9 +173,36 @@ class Flooder:
                     f"{self.successful} connected, {self.failed} failed[/]"
                 )
 
+    async def _stats_reporter(self) -> None:
+        """Emit flood.stats aggregates every stats_interval seconds."""
+        interval = self.stats_interval
+        while True:
+            await asyncio.sleep(interval)
+            if eventlog is None:
+                continue
+            total = self.successful + self.failed
+            if total == 0:
+                continue  # nothing happened yet — stay silent
+            cps = self.connections_per_sec(window=interval)
+            errors = ",".join(
+                f"{cls}:{n}" for cls, n in self._error_counts.items() if n
+            ) or "none"
+            eventlog.log_event(
+                "flood", "flood.stats", session=self.session_id,
+                interval=eventlog._fmt_duration(interval),
+                attempts=total, ok=self.successful, fail=self.failed,
+                cps=eventlog._fmt_rate(cps),
+                bytes=eventlog._fmt_bytes(self.bytes_sent),
+                errors=errors,
+            )
+
     def stop(self) -> None:
         """Set the stop flag.  Running coroutines exit early."""
         self._stopped = True
+        if eventlog is not None:
+            eventlog.log_event(
+                "flood", "flood.stopped", session=self.session_id, actor="user"
+            )
         if self.on_log:
             self.on_log("[#8a5a4a]▸ Stop signal sent...[/]")
 
@@ -165,6 +235,7 @@ class Flooder:
             status = "OK"
             sent = 0
             error_msg = ""
+            error_cls = ""
 
             try:
                 reader, writer = await asyncio.wait_for(
@@ -190,23 +261,40 @@ class Flooder:
             except asyncio.TimeoutError:
                 self.failed += 1
                 status = "TIMEOUT"
+                error_cls = "timeout"
                 error_msg = "Connection timed out"
             except asyncio.CancelledError:
                 self.failed += 1
                 status = "CANCEL"
+                error_cls = "cancel"
                 error_msg = "Cancelled"
             except ConnectionRefusedError:
                 self.failed += 1
                 status = "REFUSED"
+                error_cls = "refused"
                 error_msg = "Connection refused"
             except OSError as e:
                 self.failed += 1
                 status = "ERROR"
+                error_cls = "dns" if type(e).__name__ == "gaierror" else "other"
                 error_msg = str(e)
             except Exception as e:
                 self.failed += 1
                 status = "ERROR"
+                error_cls = "other"
                 error_msg = str(e)
+
+            # ── Event log: error class accounting + sampled warnings ──
+            if status != "OK" and eventlog is not None:
+                self._error_counts[error_cls] = self._error_counts.get(error_cls, 0) + 1
+                count = self._error_counts[error_cls]
+                if count <= eventlog.ERROR_SAMPLE_LIMIT:
+                    self._error_samples[error_cls] = error_msg
+                    eventlog.log_event(
+                        "flood", "flood.error_sample", level="warn",
+                        session=self.session_id, error_class=error_cls,
+                        message=error_msg, total=count,
+                    )
 
             latency_ms = (time.monotonic() - t_start) * 1000
 

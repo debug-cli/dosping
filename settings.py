@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  settings.py  —  DOSping v3.7.0 "Code Red" Settings Editor
+#  settings.py  —  DOSping v3.7.1 "Code Red" Settings Editor
 # ═══════════════════════════════════════════════════════════════
 #  Run directly:   python settings.py
 #  In-app:         Settings modal → Advanced → "Open…"
@@ -30,6 +30,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Input, Static
 
+import eventlog
+
 from config import (
     APP_CODENAME,
     APP_DOCS,
@@ -39,8 +41,11 @@ from config import (
     CONN_DELAY_MAX,
     DEFAULT_PRESET,
     DISCLAIMER,
+    LOG_LEVELS,
     LOG_LINES_MAX,
     LOG_LINES_MIN,
+    LOG_MAX_TOTAL_CHOICES,
+    LOG_RETENTION_CHOICES,
     SOCK_TIMEOUT_MAX,
     SOCK_TIMEOUT_MIN,
     THREADS_MAX,
@@ -433,14 +438,38 @@ class SettingsScreen(Screen):
                     yield FieldLabel("Banner Grab", "read protocol banner")
                     yield self._choice_btn("adv-banner-grab", [("on", True), ("off", False)], self.cfg.get("advanced.banner_grab"))
 
-                # ── Logging ──────────────────────────────────
+                # ── Logging ──────────────────────────────
                 yield SectionTitle("── ADVANCED · LOGGING ─────", classes="adv-only")
                 with Horizontal(classes="row adv-only"):
-                    yield FieldLabel("Flood Log Lines", f"in-memory cap, {LOG_LINES_MIN}–{LOG_LINES_MAX}")
+                    yield FieldLabel("Log To Disk", "event log file (logs/)")
+                    yield self._choice_btn("adv-log-enabled", [("on", True), ("off", False)], self.cfg.get("advanced.logging.enabled", True))
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("Verbosity", "event log detail level")
+                    yield self._choice_btn("adv-log-level", [(lv, lv) for lv in LOG_LEVELS], self.cfg.get("advanced.logging.level", "normal"))
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("Delete Logs After", "auto-cleanup at startup")
+                    yield self._choice_btn(
+                        "adv-log-retention",
+                        [("never", 0)] + [(f"{d}d", d) for d in LOG_RETENTION_CHOICES if d],
+                        self.cfg.get("advanced.logging.retention_days", 30),
+                    )
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("Max Log Storage", "cap on the logs/ folder")
+                    yield self._choice_btn(
+                        "adv-log-maxtotal",
+                        [("unlimited", 0)] + [(f"{mb} MB", mb) for mb in LOG_MAX_TOTAL_CHOICES if mb],
+                        self.cfg.get("advanced.logging.max_total_mb", 50),
+                    )
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("Flood Log Lines", "in-app panel cap, 100-100000")
                     yield Input(value=str(self.cfg.get("advanced.flood_log_lines", 2000)), placeholder="2000", id="in-adv-log-lines")
                 with Horizontal(classes="row adv-only"):
-                    yield FieldLabel("Timestamped Logs", "prefix [HH:MM:SS]")
+                    yield FieldLabel("Timestamped Logs", "prefix [HH:MM:SS] (in-app panel)")
                     yield self._choice_btn("adv-timestamped", [("on", True), ("off", False)], self.cfg.get("advanced.timestamped_logs"))
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("")
+                    yield Button("↗ Open Logs Folder", id="btn-open-logs", classes="action-btn")
+                    yield Button("✕ Clear All Logs", id="btn-clear-logs", classes="danger-btn")
 
                 # ── Interface ────────────────────────────────
                 yield SectionTitle("── ADVANCED · INTERFACE ────", classes="adv-only")
@@ -500,7 +529,8 @@ class SettingsScreen(Screen):
                         f"Repo: [$text]{APP_REPO}[/]\n"
                         f"Docs: [$text]{APP_DOCS}[/]\n"
                         f"Python: 3.12+  ·  Framework: Textual + asyncio\n"
-                        f"Config file: config.json (same folder as dosping.py)",
+                        f"Config file: config.json (same folder as dosping.py)\n"
+                        f"Log file: {eventlog.get_log_path() or 'logs/ (logging off)'}",
                         classes="about-link",
                         markup=True,
                     )
@@ -530,9 +560,15 @@ class SettingsScreen(Screen):
         if errors:
             self.notify(errors[0], severity="error", timeout=6)
             return
+        self._log_setting_changes(data)
         for dotted, value in data.items():
             self.cfg.set(dotted, value)
         if self.cfg.save():
+            # Hot-apply event-log settings (master toggle / verbosity / caps).
+            try:
+                eventlog.reconfigure(self.cfg)
+            except Exception:
+                pass
             rebuild_from_config(self.cfg)
             apply_live(self.app)
             self._dismiss("saved")
@@ -544,7 +580,24 @@ class SettingsScreen(Screen):
         self.cfg.reload()
         rebuild_from_config(self.cfg)
         apply_live(self.app)
+        eventlog.log_event(
+            "settings", "settings.editor_discarded", source="UI:settings-editor"
+        )
         self._dismiss("discarded")
+
+    def _log_setting_changes(self, data: dict[str, Any]) -> None:
+        """Emit settings.changed (old → new) for every edited value."""
+        for dotted, new in data.items():
+            try:
+                old = self.cfg.get(dotted)
+            except Exception:
+                continue
+            if old != new:
+                eventlog.log_event(
+                    "settings", "settings.changed",
+                    key=dotted, old=old, new=new,
+                    source="UI:settings-editor",
+                )
 
     # ── Toasts & confirmations ───────────────────────────────
 
@@ -648,6 +701,19 @@ class SettingsScreen(Screen):
         if bid == "about":
             self.action_about()
             return
+        if bid == "open-logs":
+            ok = eventlog.open_logs_folder()
+            eventlog.log_event(
+                "ui", "ui.logs_folder_opened", source="UI:settings-editor", success=ok
+            )
+            self._toast(
+                "Logs folder opened" if ok else "Could not open logs folder",
+                severity="information" if ok else "error",
+            )
+            return
+        if bid == "clear-logs":
+            self.run_worker(self._clear_all_logs())
+            return
 
         # Cycle buttons
         if bid in self._choices:
@@ -720,6 +786,10 @@ class SettingsScreen(Screen):
     async def _apply_preset(self) -> None:
         name = self._current_preset()
         if self.cfg.apply_preset(name):
+            eventlog.log_event(
+                "settings", "settings.preset_applied", preset=name,
+                source="UI:settings-editor",
+            )
             self._reload_inputs()
             self._toast(f"Preset '{name}' applied to attacker/scanner")
         else:
@@ -743,6 +813,10 @@ class SettingsScreen(Screen):
                 "scanner_threads": self._int_input("in-scanner-slots", 256),
             },
         ):
+            eventlog.log_event(
+                "settings", "settings.preset_created", preset=name,
+                source="UI:settings-editor",
+            )
             names = self.cfg.all_preset_names()
             self._choices["preset-select"] = {"options": names, "index": names.index(name)}
             self.query_one("#btn-preset-select", Button).label = name
@@ -759,6 +833,10 @@ class SettingsScreen(Screen):
             self._toast("Deletion cancelled")
             return
         if self.cfg.delete_preset(name):
+            eventlog.log_event(
+                "settings", "settings.preset_deleted", preset=name, confirmed=True,
+                source="UI:settings-editor",
+            )
             names = self.cfg.all_preset_names()
             active = self.cfg.get("presets.active", DEFAULT_PRESET)
             self._choices["preset-select"] = {"options": names, "index": names.index(active)}
@@ -767,12 +845,29 @@ class SettingsScreen(Screen):
         else:
             self._toast("Could not delete preset", severity="error")
 
+    async def _clear_all_logs(self) -> None:
+        """Danger zone: delete every saved log file except today's."""
+        if not await self._confirm("Delete ALL saved log files (except today's)?"):
+            self._toast("Log cleanup cancelled")
+            return
+        deleted, freed = eventlog.run_retention(force_all=True)
+        eventlog.log_event(
+            "ui", "ui.logs_cleared", deleted=deleted,
+            freed=eventlog._fmt_bytes(freed), confirmed=True,
+            source="UI:settings-editor",
+        )
+        self._toast(f"Deleted {deleted} log file(s) — {eventlog._fmt_bytes(freed)} freed", severity="warning")
+
     async def _reset_advanced(self) -> None:
         if not await self._confirm("Reset ALL advanced settings to defaults?"):
             self._toast("Reset cancelled")
             return
         self.cfg.reset_section("advanced")
         self.cfg.save()
+        eventlog.log_event(
+            "settings", "settings.reset_advanced", confirmed=True,
+            source="UI:settings-editor",
+        )
         self._rebuild_advanced_inputs()
         self._toast("Advanced settings restored to defaults")
 
@@ -783,6 +878,10 @@ class SettingsScreen(Screen):
         self.cfg.reset_all()
         saved = self.cfg.save()
         if saved:
+            eventlog.log_event(
+                "settings", "settings.factory_reset", confirmed=True,
+                source="UI:settings-editor",
+            )
             rebuild_from_config(self.cfg)
             apply_live(self.app)
             self._reload_all_inputs()
@@ -825,6 +924,10 @@ class SettingsScreen(Screen):
             "ui-ascii": "ui.ascii_effects",
             "adv-reuse-payload": "advanced.reuse_payload",
             "adv-banner-grab": "advanced.banner_grab",
+            "adv-log-enabled": "advanced.logging.enabled",
+            "adv-log-level": "advanced.logging.level",
+            "adv-log-retention": "advanced.logging.retention_days",
+            "adv-log-maxtotal": "advanced.logging.max_total_mb",
             "adv-timestamped": "advanced.timestamped_logs",
             "adv-confirm-quit": "advanced.confirm_quit",
             "adv-confirm-danger": "advanced.confirm_danger",
@@ -872,6 +975,10 @@ class SettingsScreen(Screen):
         toggles = {
             "btn-adv-reuse-payload": "advanced.reuse_payload",
             "btn-adv-banner-grab": "advanced.banner_grab",
+            "btn-adv-log-enabled": "advanced.logging.enabled",
+            "btn-adv-log-level": "advanced.logging.level",
+            "btn-adv-log-retention": "advanced.logging.retention_days",
+            "btn-adv-log-maxtotal": "advanced.logging.max_total_mb",
             "btn-adv-timestamped": "advanced.timestamped_logs",
             "btn-adv-confirm-quit": "advanced.confirm_quit",
             "btn-adv-confirm-danger": "advanced.confirm_danger",
@@ -1029,6 +1136,19 @@ class SettingsScreen(Screen):
             data["advanced.timestamped_logs"] = self._live_opt_value(
                 "adv-timestamped", "advanced.timestamped_logs", False
             )
+            # ── Event log (advanced.logging, v3.7.1) ─────────
+            data["advanced.logging.enabled"] = self._live_opt_value(
+                "adv-log-enabled", "advanced.logging.enabled", True
+            )
+            data["advanced.logging.level"] = self._live_opt_value(
+                "adv-log-level", "advanced.logging.level", "normal"
+            )
+            data["advanced.logging.retention_days"] = self._live_opt_value(
+                "adv-log-retention", "advanced.logging.retention_days", 30
+            )
+            data["advanced.logging.max_total_mb"] = self._live_opt_value(
+                "adv-log-maxtotal", "advanced.logging.max_total_mb", 50
+            )
             data["advanced.confirm_quit"] = self._live_opt_value(
                 "adv-confirm-quit", "advanced.confirm_quit", True
             )
@@ -1092,7 +1212,12 @@ class SettingsApp(App):
 
 
 def main() -> None:
-    SettingsApp().run()
+    # Standalone runs get the event log too (same config as dosping.py).
+    eventlog.init(get_config(), version=APP_VERSION, codename=APP_CODENAME)
+    try:
+        SettingsApp().run()
+    finally:
+        eventlog.shutdown()
 
 
 if __name__ == "__main__":

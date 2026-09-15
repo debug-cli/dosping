@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════
-#  DOSping 3.7.0 "Code Red" — Quick Start Installer (Linux / macOS)
+#  DOSping 3.7.1 "Code Red" — Quick Start Installer (Linux / macOS)
 # ═══════════════════════════════════════════════════════════
 #  Usage:
 #    bash setup.sh              # install + launch
@@ -77,7 +77,7 @@ spin() {
 
 echo ""
 echo -e "  ${BOLD}════════════════════════════════════════${RESET}"
-echo -e "  ${BOLD}${AMBER} DOSping 3.7.0 “Code Red” — Quick Start Installer${RESET}"
+echo -e "  ${BOLD}${AMBER} DOSping 3.7.1 “Code Red” — Quick Start Installer${RESET}"
 echo -e "  ${BOLD}════════════════════════════════════════${RESET}"
 echo ""
 echo -e "  ${DIM}For penetration testing / education only.${RESET}"

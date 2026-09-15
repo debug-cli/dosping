@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  config.py  —  DOSping 3.7.0 "Code Red" Configuration Layer
+#  config.py  —  DOSping 3.7.1 "Code Red" Configuration Layer
 # ═══════════════════════════════════════════════════════════════
 #  Loads and saves config.json next to dosping.py.  A missing or
 #  partially-invalid file is auto-repaired from defaults so the TUI
@@ -26,7 +26,7 @@ import threading
 from typing import Any, Optional
 
 APP_NAME = "DOSping"
-APP_VERSION = "3.7.0"
+APP_VERSION = "3.7.1"
 APP_CODENAME = "Code Red"
 APP_REPO = "https://github.com/debug-cli/dosping"
 APP_DOCS = "https://dosping-docs.vercel.app"
@@ -53,6 +53,12 @@ PACKET_MIN, PACKET_MAX = 8, 8192
 CONN_DELAY_MIN, CONN_DELAY_MAX = 0.0, 2.0
 LOG_LINES_MIN, LOG_LINES_MAX = 100, 100000
 SOCK_TIMEOUT_MIN, SOCK_TIMEOUT_MAX = 0.5, 30.0
+
+# Event-log (advanced.logging) choices — v3.7.1
+LOG_LEVELS = ("minimal", "normal", "verbose", "debug")
+LOG_RETENTION_CHOICES = (0, 1, 7, 14, 30, 90)   # days; 0 = never delete
+LOG_MAX_TOTAL_CHOICES = (0, 10, 25, 50, 100, 250)  # MB; 0 = unlimited
+LOG_MAX_FILE_MIN, LOG_MAX_FILE_MAX = 1, 50      # per-file MB cap
 
 BUILTIN_PRESET_NAMES = ("Low", "Medium", "High")
 DEFAULT_PRESET = "Medium"
@@ -208,6 +214,14 @@ def _default_config() -> dict[str, Any]:
             "toasts": True,             # notification toasts for changes
             "flood_log_lines": 2000,    # RichLog max lines (memory cap)
             "timestamped_logs": True,   # prefix log lines with [HH:MM:SS]
+            # ── Event log (disk) ──────────────────────────
+            "logging": {
+                "enabled": True,        # master toggle (disk writes)
+                "level": "normal",     # minimal | normal | verbose | debug
+                "retention_days": 30,   # 0=never, 1, 7, 14, 30, 90
+                "max_total_mb": 50,     # logs/ folder cap; 0=unlimited
+                "max_file_mb": 5,       # per-file cap 1–50
+            },
             # ── Sessions ──────────────────────────────────
             "max_tabs": 4,              # concurrent session tabs (1–8)
             "auto_start_session": True, # session modal opens immediately
@@ -220,8 +234,11 @@ def _default_config() -> dict[str, Any]:
     }
 
 
-def _migrate(data: Any) -> dict[str, Any]:
-    """Return *data* merged over defaults, with every field clamped."""
+def _migrate(data: Any, notes: Optional[list[str]] = None) -> dict[str, Any]:
+    """Return *data* merged over defaults, with every field clamped.
+
+    Human-readable repair notes are appended to *notes* when given.
+    """
     base = _default_config()
     if not isinstance(data, dict):
         return base
@@ -298,6 +315,24 @@ def _migrate(data: Any) -> dict[str, Any]:
     )
     adv["block_private_targets"] = bool(adv["block_private_targets"])
 
+    # ── Advanced · Logging (v3.7.1) ──────────────────────────
+    lg = adv["logging"]
+    if not isinstance(lg, dict):  # hand-edited garbage → defaults
+        lg = adv["logging"] = base["advanced"]["logging"]
+    if "logging" not in (data.get("advanced") or {}) and isinstance(data, dict):
+        if notes is not None:
+            notes.append("advanced.logging added from defaults")
+    lg["enabled"] = bool(lg["enabled"])
+    if lg["level"] not in LOG_LEVELS:
+        lg["level"] = "normal"
+    if lg["retention_days"] not in LOG_RETENTION_CHOICES:
+        lg["retention_days"] = 30
+    if lg["max_total_mb"] not in LOG_MAX_TOTAL_CHOICES:
+        lg["max_total_mb"] = 50
+    lg["max_file_mb"] = clamp_int(
+        lg["max_file_mb"], LOG_MAX_FILE_MIN, LOG_MAX_FILE_MAX, 5
+    )
+
     return base
 
 
@@ -309,12 +344,15 @@ class Config:
         self._lock = threading.RLock()
         self._dirty = False
         self._data: dict[str, Any] = {}
+        self._last_saved: dict[str, Any] = {}
+        self.migration_notes: list[str] = []
         self.reload()
 
     # ── Loading / saving ─────────────────────────────────────
 
     def reload(self) -> None:
         with self._lock:
+            notes: list[str] = []
             try:
                 with open(self.path, "r", encoding="utf-8") as f:
                     raw = json.load(f)
@@ -322,21 +360,66 @@ class Config:
                 raw = {}
             except (json.JSONDecodeError, OSError, UnicodeDecodeError):
                 raw = {}
-            self._data = _migrate(raw)
+                if notes is not None:
+                    notes.append("config unreadable — rebuilt from defaults")
+            self._data = _migrate(raw, notes)
+            self.migration_notes = notes
             self._dirty = False
+            self._last_saved = json.loads(json.dumps(self._data))
+            # Event log (lazy import — avoids a circular dependency at
+            # module-load time; eventlog imports nothing from config).
+            try:
+                import eventlog
+
+                eventlog.log_event(
+                    "config", "config.load", path=os.path.basename(self.path),
+                    changed_keys=0,
+                    migration_notes="; ".join(self.migration_notes) or "none",
+                )
+            except Exception:
+                pass
 
     def save(self) -> bool:
         """Atomically persist to config.json.  Returns False on OSError."""
         with self._lock:
+            changed = self._diff_keys(self._last_saved, self._data)
             try:
                 tmp = self.path + ".tmp"
                 with open(tmp, "w", encoding="utf-8") as f:
                     json.dump(self._data, f, indent=2)
                 os.replace(tmp, self.path)
                 self._dirty = False
-                return True
+                self._last_saved = json.loads(json.dumps(self._data))
+                ok = True
             except OSError:
-                return False
+                ok = False
+        # Log outside the lock (eventlog is non-blocking anyway).
+        if ok:
+            try:
+                import eventlog
+
+                eventlog.log_event(
+                    "config", "config.save",
+                    changed_keys=len(changed),
+                    keys=",".join(sorted(changed)) or "none",
+                )
+            except Exception:
+                pass
+        return ok
+
+    @staticmethod
+    def _diff_keys(old: Any, new: Any, prefix: str = "") -> set[str]:
+        """Dotted keys whose values differ between *old* and *new*."""
+        changed: set[str] = set()
+        if isinstance(old, dict) and isinstance(new, dict):
+            for key in set(old) | set(new):
+                changed |= Config._diff_keys(
+                    old.get(key), new.get(key),
+                    f"{prefix}.{key}" if prefix else str(key),
+                )
+        elif old != new:
+            changed.add(prefix or "<root>")
+        return changed
 
     # ── Generic accessors ────────────────────────────────────
 
@@ -446,6 +529,7 @@ class Config:
             if section in defaults:
                 self._data[section] = defaults[section]
                 self._dirty = True
+                self._log_reset("config.reset_section", section)
 
     def reset_all(self) -> None:
         """Restore the entire configuration to defaults (keeps custom presets)."""
@@ -455,6 +539,16 @@ class Config:
             self._data = defaults
             self._data["presets"]["custom"] = custom
             self._dirty = True
+            self._log_reset("config.reset_all", "all")
+
+    def _log_reset(self, event: str, section: str) -> None:
+        """Fire a config reset event (lazy import, never raises)."""
+        try:
+            import eventlog
+
+            eventlog.log_event("config", event, section=section)
+        except Exception:
+            pass
 
     def is_private_target(self, ip: str) -> bool:
         """True if *ip* is loopback or RFC1918 private space."""

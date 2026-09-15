@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  dosping.py  —  DOSping 3.7.0 "Code Red" Network Stress Testing TUI
+#  dosping.py  —  DOSping 3.7.1 "Code Red" Network Stress Testing TUI
 # ═══════════════════════════════════════════════════════════════
 #  Cross-platform Terminal UI for network stress testing with
 #  multi-tab sessions, live split-panel monitoring, command
@@ -39,6 +39,8 @@ import re
 import socket
 import statistics
 import subprocess
+import sys
+import threading
 import time
 import webbrowser
 from dataclasses import dataclass
@@ -78,6 +80,8 @@ from textual.widgets import (
 from flooder import Flooder
 from scanner import NetworkScanEngine, PortScannerEngine, ScanResult, parse_port_spec
 
+import eventlog
+
 from config import (
     BUILTIN_PRESETS,
     DEFAULT_PRESET,
@@ -85,6 +89,8 @@ from config import (
     PACKET_MIN,
     THREADS_MAX,
     THREADS_MIN,
+    APP_CODENAME,
+    APP_VERSION,
     get_config,
     valid_cidr,
     valid_hostname,
@@ -734,7 +740,7 @@ class HomeHeader(Static):
 
     def _render_title(self) -> None:
         # THEME is read at render time, so live theme switches apply.
-        self.update(f"[bold {THEME['accent']}]DO|||>g  3.7.0[/]")
+        self.update(f"[bold {THEME['accent']}]DO|||>g  3.7.1[/]")
 
     def sync_enabled(self, enabled: bool) -> None:
         """Kept for the ascii-effects toggle (glitch removed)."""
@@ -1219,6 +1225,11 @@ class SetupModal(ModalScreen[dict | None]):
         bots_str = self.query_one("#bots-input", Input).value.strip()
 
         if not valid_ip(ip):
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                field="target", reason="invalid_ip", value=ip,
+                source="UI:setup-modal",
+            )
             self.notify("Invalid IPv4 address!", severity="error")
             self.query_one("#ip-input", Input).focus()
             return
@@ -1235,11 +1246,21 @@ class SetupModal(ModalScreen[dict | None]):
                         "Private targets blocked (advanced.block_private_targets)",
                         severity="error",
                     )
+                    eventlog.log_event(
+                        "session", "session.setup_rejected", level="warn",
+                        field="target", reason="private_blocked", value=ip,
+                        source="UI:setup-modal",
+                    )
                     return
             except ValueError:
                 pass
 
         if not valid_port_spec(ports_str):
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                field="ports", reason="invalid_port_spec",
+                source="UI:setup-modal",
+            )
             self.notify(
                 "Invalid port(s)! Use 1-65535, comma-separated.",
                 severity="error",
@@ -1250,6 +1271,11 @@ class SetupModal(ModalScreen[dict | None]):
         try:
             ports = [int(p.strip()) for p in ports_str.split(",") if p.strip()]
         except ValueError:
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                field="ports", reason="unparseable",
+                source="UI:setup-modal",
+            )
             self.notify("Invalid port(s)!", severity="error")
             self.query_one("#port-input", Input).focus()
             return
@@ -1259,9 +1285,20 @@ class SetupModal(ModalScreen[dict | None]):
             if bots < 1:
                 raise ValueError
         except ValueError:
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                field="bots", reason="invalid_count",
+                source="UI:setup-modal",
+            )
             self.notify("Invalid bot count!", severity="error")
             self.query_one("#bots-input", Input).focus()
             return
+
+        eventlog.log_event(
+            "session", "session.setup_validated", level="verbose",
+            kind="test", target=ip, ports=",".join(map(str, ports)), bots=bots,
+            source="UI:setup-modal", user_action="LAUNCH",
+        )
 
         # Persist attacker defaults for next launch (Phase 1).
         cfg = get_config()
@@ -1658,12 +1695,22 @@ class ScannerSetupModal(ModalScreen[dict | None]):
         ).value.strip()
 
         if not target:
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="scan", field="target", reason="empty",
+                source="UI:scanner-setup-modal",
+            )
             self.notify("Target is required.", severity="error")
             self.query_one("#scan-ip-input", Input).focus()
             return
 
         if self._mode == "network":
             if not valid_cidr(target):
+                eventlog.log_event(
+                    "session", "session.setup_rejected", level="warn",
+                    kind="scan", field="target", reason="invalid_cidr",
+                    source="UI:scanner-setup-modal",
+                )
                 self.notify(
                     "Invalid CIDR notation — use format: 192.168.1.0/24",
                     severity="error",
@@ -1671,11 +1718,21 @@ class ScannerSetupModal(ModalScreen[dict | None]):
                 self.query_one("#scan-ip-input", Input).focus()
                 return
         elif not (valid_ip(target) or valid_hostname(target)):
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="scan", field="target", reason="invalid_host",
+                source="UI:scanner-setup-modal",
+            )
             self.notify("Invalid IP address or hostname.", severity="error")
             self.query_one("#scan-ip-input", Input).focus()
             return
 
         if not valid_port_spec(ports_text):
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="scan", field="ports", reason="invalid_port_spec",
+                source="UI:scanner-setup-modal",
+            )
             self.notify("Invalid port specification.", severity="error")
             self.query_one("#scan-ports-input", Input).focus()
             return
@@ -1683,6 +1740,11 @@ class ScannerSetupModal(ModalScreen[dict | None]):
         try:
             ports = parse_port_spec(ports_text)
         except ValueError as e:
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="scan", field="ports", reason=str(e),
+                source="UI:scanner-setup-modal",
+            )
             self.notify(str(e), severity="error")
             self.query_one("#scan-ports-input", Input).focus()
             return
@@ -1700,8 +1762,21 @@ class ScannerSetupModal(ModalScreen[dict | None]):
             if timeout <= 0 or banner_timeout <= 0 or concurrency < 1:
                 raise ValueError
         except ValueError:
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="scan", field="timing/concurrency", reason="invalid",
+                source="UI:scanner-setup-modal",
+            )
             self.notify("Invalid timing or concurrency value.", severity="error")
             return
+
+        eventlog.log_event(
+            "session", "session.setup_validated", level="verbose",
+            kind="scan", mode=self._mode, target=target,
+            ports=len(ports), timeout=timeout, banner_timeout=banner_timeout,
+            concurrency=concurrency, source="UI:scanner-setup-modal",
+            user_action="LAUNCH",
+        )
 
         # Persist scanner defaults for next launch (Phase 1/7).
         cfg = get_config()
@@ -1929,6 +2004,7 @@ class SettingsModal(ModalScreen[None]):
         try:
             from settings import SettingsScreen
         except Exception as e:
+            eventlog.log_error("settings", "open_editor", e)
             self.app.notify(f"Cannot open settings editor: {e}", severity="error")
             return
         result = await self.app.push_screen(SettingsScreen(), wait_for_dismiss=True)
@@ -1965,6 +2041,10 @@ class SettingsModal(ModalScreen[None]):
         current = str(cfg.get("theme.name", "monochrome-red"))
         idx = themes.index(current) if current in themes else 0
         next_theme = themes[(idx + 1) % len(themes)]
+        eventlog.log_event(
+            "settings", "settings.theme_changed", level="verbose",
+            old=current, new=next_theme, source="UI:settings-modal",
+        )
         cfg.set("theme.name", next_theme)
         cfg.set("theme.accent", theme_palettes()[next_theme][0])
         cfg.save()
@@ -2230,6 +2310,11 @@ class GeoIPPanel(Static):
             )
             data = resp.json()
             if data.get("status") == "success":
+                eventlog.log_event(
+                    "ui", "ui.geoip_result", level="debug",
+                    target=self.target, country=data.get("country", ""),
+                    city=data.get("city", ""), isp=data.get("isp", ""),
+                )
                 self.update(
                     f"[bold {CLR_SAGE}]Target Info:[/] "
                     f"[{CLR_AMBER}]{data.get('city', 'Unknown')}, {data.get('country', 'Unknown')}[/] • "
@@ -2240,6 +2325,7 @@ class GeoIPPanel(Static):
                     f"[{CLR_BRICK}]GeoIP Failed:[/] {data.get('message', 'Unknown')}"
                 )
         except Exception as e:
+            eventlog.log_error("ui", "geoip_fetch", e)
             self.update(f"[{CLR_BRICK}]GeoIP Error:[/] {e}")
 
 
@@ -2307,7 +2393,7 @@ class PortScannerPanel(Static):
                 self.open_ports.append(port)
                 self.refresh_panel(ViewMode.IT)
             except Exception:
-                pass
+                pass  # per-port misses are routine — not logged (noise)
 
 
 class PacketInspectorPanel(Static):
@@ -2618,6 +2704,7 @@ class TestPanel(Vertical):
 
     def __init__(self, target: str, ports: list[int], bots: int) -> None:
         super().__init__()
+        self.session_id: str | None = None  # filled by TestTabPane
         self.target = target
         self.ports = ports
         self.bots = bots
@@ -2862,6 +2949,14 @@ class TestPanel(Vertical):
             log_interval=int(_adv.get("log_interval", 25)),
             on_progress=on_progress,
             on_log=on_log,
+            session_id=self.session_id,
+        )
+        eventlog.log_event(
+            "session", "session.attack_started", session=self.session_id,
+            target=self.target, ports=",".join(map(str, self.ports)),
+            bots=self.bots, packet_size=eventlog._fmt_bytes(self._effective_packet_size),
+            reuse_payload=bool(_adv.get("reuse_payload", True)),
+            source="UI:setup-modal", user_action="LAUNCH",
         )
 
         self._log_flood(f"[{CLR_BORDER_A}]{'═' * 42}[/]")
@@ -2898,6 +2993,18 @@ class TestPanel(Vertical):
         scanner.show_complete()
         self._is_running = False
 
+        # ── Event log: attack finished ───────────────────────
+        stats = self.get_stats()
+        eventlog.log_event(
+            "session", "session.attack_finished", session=self.session_id,
+            duration=eventlog._fmt_duration(stats.get("elapsed", 0.0)),
+            attempts=stats.get("total", 0), ok=stats.get("hits", 0),
+            fail=stats.get("misses", 0),
+            success_rate=eventlog._fmt_pct(stats.get("success_pct", 0.0)),
+            bytes=eventlog._fmt_bytes(self.flooder.bytes_sent if self.flooder else 0),
+            stopped=bool(stats.get("stopped", False)),
+        )
+
         # ── HTTP health check (threaded — never blocks the UI loop) ──
         self._log_flood("")
         self._log_flood(f"[{CLR_MUTED}]Running HTTP health check...[/]")
@@ -2906,8 +3013,16 @@ class TestPanel(Vertical):
                 requests.head, f"http://{self.target}", timeout=3
             )
             self._log_flood(f"[{CLR_SAGE_DIM}]  ● HTTP {resp.status_code}[/]")
-        except requests.RequestException:
+            eventlog.log_event(
+                "flood", "flood.health_check", level="verbose", session=self.session_id,
+                kind="http", status=resp.status_code,
+            )
+        except requests.RequestException as e:
             self._log_flood(f"[{CLR_BRICK}]  ✖ HTTP check failed[/]")
+            eventlog.log_event(
+                "flood", "flood.health_check", level="verbose", session=self.session_id,
+                kind="http", result="failed", error=str(e),
+            )
 
     # ═════════════════════════════════════════════════════════
     #  Stats timer
@@ -2949,9 +3064,9 @@ class TestPanel(Vertical):
                         view_mode, self.flooder.bytes_sent, self.flooder.successful
                     )
             except Exception:
-                pass
+                eventlog.log_exception("session", "test_panel.sidebar_refresh")
         except Exception:
-            pass
+            eventlog.log_exception("session", "test_panel.stats_refresh")
 
     # ═════════════════════════════════════════════════════════
     #  Public actions (called from commands / palette)
@@ -2960,6 +3075,10 @@ class TestPanel(Vertical):
     def stop_flood(self) -> None:
         if self.flooder:
             self.flooder.stop()
+            eventlog.log_event(
+                "session", "session.attack_stopped", session=self.session_id,
+                actor="user", user_action="STOP",
+            )
         try:
             self.query_one(".attack-scanner", KITTScanner).halt()
         except Exception:
@@ -2979,7 +3098,7 @@ class TestPanel(Vertical):
             scanner = self.query_one(".attack-scanner", KITTScanner)
             scanner.restart()
         except Exception:
-            pass
+            eventlog.log_exception("session", "test_panel.reset")
 
         self.flooder = None
         self.start_time = time.time()
@@ -3019,11 +3138,19 @@ class TestPanel(Vertical):
         self.icmp_enabled = not self.icmp_enabled
         if not self.icmp_enabled:
             self._kill_ping()
+        eventlog.log_event(
+            "session", "session.monitor_toggled", level="verbose",
+            session=self.session_id, monitor="icmp", enabled=self.icmp_enabled,
+        )
         label = "enabled" if self.icmp_enabled else "disabled"
         self.app.notify(f"ICMP monitor {label}")
 
     def toggle_tcp(self) -> None:
         self.tcp_enabled = not self.tcp_enabled
+        eventlog.log_event(
+            "session", "session.monitor_toggled", level="verbose",
+            session=self.session_id, monitor="tcp", enabled=self.tcp_enabled,
+        )
         label = "enabled" if self.tcp_enabled else "disabled"
         self.app.notify(f"TCP monitor {label}")
 
@@ -3031,13 +3158,13 @@ class TestPanel(Vertical):
         try:
             self.query_one(".flood-log", RichLog).clear()
         except Exception:
-            pass
+            eventlog.log_exception("session", "test_panel.clear_flood_log")
 
     def clear_ping_log(self) -> None:
         try:
             self.query_one(".ping-log", RichLog).clear()
         except Exception:
-            pass
+            eventlog.log_exception("session", "test_panel.clear_ping_log")
 
     def get_stats(self) -> dict:
         """Return current session stats as a dict."""
@@ -3148,6 +3275,7 @@ class ScanSessionPanel(Vertical):
         self.tcp_enabled: bool = True
         self.results: list[ScanResult] = []
         self._stats_timer = None
+        self.session_id: str | None = None  # filled by ScanTabPane
 
     def compose(self) -> ComposeResult:
         displayer_header = (
@@ -3189,6 +3317,13 @@ class ScanSessionPanel(Vertical):
 
     @work(exclusive=True, group="scan")
     async def _start_scan(self) -> None:
+        eventlog.log_event(
+            "session", "session.scan_started", session=self.session_id,
+            mode=self.scan_mode, target=self.target,
+            ports=len(self.ports), concurrency=self.concurrency,
+            timeout=self.timeout, banner_timeout=self.banner_timeout,
+            source="UI:scanner-setup-modal", user_action="LAUNCH",
+        )
         self._log_ping(f"[{CLR_BORDER_A}]{'─' * 44}[/]")
         self._log_ping(
             f"[bold {CLR_AMBER}]  "
@@ -3221,6 +3356,7 @@ class ScanSessionPanel(Vertical):
                 banner_timeout=self.banner_timeout,
                 concurrency=self.concurrency,
                 banner_grab=_banner_grab,
+                session_id=self.session_id,
             )
         else:
             engine = PortScannerEngine(
@@ -3230,6 +3366,7 @@ class ScanSessionPanel(Vertical):
                 banner_timeout=self.banner_timeout,
                 concurrency=self.concurrency,
                 banner_grab=_banner_grab,
+                session_id=self.session_id,
             )
         self.results = await engine.scan()
         if self.scan_mode == "network":
@@ -3345,20 +3482,28 @@ class ScanSessionPanel(Vertical):
                 graph.refresh_graph(graph.history, view_mode)
                 self.query_one("#geoip-panel", GeoIPPanel).refresh_panel(view_mode)
             except Exception:
-                pass
+                eventlog.log_exception("scanner", "scan_panel.sidebar_refresh")
         except Exception:
-            pass
+            eventlog.log_exception("scanner", "scan_panel.stats_refresh")
 
     def toggle_icmp(self) -> None:
         self.icmp_enabled = not self.icmp_enabled
         if not self.icmp_enabled:
             self._kill_ping()
+        eventlog.log_event(
+            "session", "session.monitor_toggled", level="verbose",
+            session=self.session_id, monitor="icmp", enabled=self.icmp_enabled,
+        )
         self.app.notify(
             f"ICMP monitor {'enabled' if self.icmp_enabled else 'disabled'}"
         )
 
     def toggle_tcp(self) -> None:
         self.tcp_enabled = not self.tcp_enabled
+        eventlog.log_event(
+            "session", "session.monitor_toggled", level="verbose",
+            session=self.session_id, monitor="tcp", enabled=self.tcp_enabled,
+        )
         self.app.notify(f"TCP monitor {'enabled' if self.tcp_enabled else 'disabled'}")
 
     def export_log(self) -> None:
@@ -3426,7 +3571,7 @@ class ScanTabPane(TabPane):
         self._scan_mode = scan_mode
 
     def compose(self) -> ComposeResult:
-        yield ScanSessionPanel(
+        panel = ScanSessionPanel(
             self._target,
             self._ports,
             self._timeout,
@@ -3434,6 +3579,8 @@ class ScanTabPane(TabPane):
             self._concurrency,
             scan_mode=self._scan_mode,
         )
+        panel.session_id = self.id  # event-log session id (scan-N)
+        yield panel
 
 
 class TestTabPane(TabPane):
@@ -3453,7 +3600,9 @@ class TestTabPane(TabPane):
         self._bots = bots
 
     def compose(self) -> ComposeResult:
-        yield TestPanel(self._target, self._ports, self._bots)
+        panel = TestPanel(self._target, self._ports, self._bots)
+        panel.session_id = self.id  # event-log session id (tab-N)
+        yield panel
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3558,7 +3707,16 @@ class SessionScreen(Screen):
     # ── Tab management ───────────────────────────────────────
 
     def action_new_test(self) -> None:
+        eventlog.log_event(
+            "session", "session.setup_opened", kind="test",
+            source="UI:session-screen", user_action="NEW_TEST",
+        )
         if self._tab_count() >= _max_tabs():
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="test", reason="max_tabs", max_tabs=_max_tabs(),
+                source="UI:session-screen",
+            )
             self.notify(f"Max {_max_tabs()} concurrent tests", severity="warning")
             return
         self.app.push_screen(SetupModal(), callback=self._on_setup)
@@ -3566,12 +3724,26 @@ class SessionScreen(Screen):
     def _on_setup(self, result: dict | None) -> None:
         if result is not None:
             self._add_test(result["target"], result["ports"], result["bots"])
-        elif self._tab_count() == 0:
-            # Cancelled with no active sessions — go back to Home Screen
-            self.app.pop_screen()
+        else:
+            eventlog.log_event(
+                "session", "session.setup_cancelled",
+                kind="test", source="UI:setup-modal", user_action="CANCEL",
+            )
+            if self._tab_count() == 0:
+                # Cancelled with no active sessions — go back to Home Screen
+                self.app.pop_screen()
 
     def action_new_scan(self) -> None:
+        eventlog.log_event(
+            "session", "session.setup_opened", kind="scan",
+            source="UI:session-screen", user_action="NEW_SCAN",
+        )
         if self._tab_count() >= _max_tabs():
+            eventlog.log_event(
+                "session", "session.setup_rejected", level="warn",
+                kind="scan", reason="max_tabs", max_tabs=_max_tabs(),
+                source="UI:session-screen",
+            )
             self.notify(f"Max {_max_tabs()} concurrent tests", severity="warning")
             return
         self.app.push_screen(ScannerSetupModal(), callback=self._on_scan_setup)
@@ -3586,9 +3758,14 @@ class SessionScreen(Screen):
                 result["concurrency"],
                 result.get("scan_mode", "host"),
             )
-        elif self._tab_count() == 0:
-            # Cancelled with no active sessions — go back to Home Screen
-            self.app.pop_screen()
+        else:
+            eventlog.log_event(
+                "session", "session.setup_cancelled",
+                kind="scan", source="UI:scanner-setup-modal", user_action="CANCEL",
+            )
+            if self._tab_count() == 0:
+                # Cancelled with no active sessions — go back to Home Screen
+                self.app.pop_screen()
 
     def _add_test(self, target: str, ports: list[int], bots: int) -> None:
         SessionScreen._tab_counter += 1
@@ -3603,6 +3780,11 @@ class SessionScreen(Screen):
         tc = self.query_one("#session-tabs", TabbedContent)
         tc.add_pane(pane)
         tc.active = tab_id
+        eventlog.log_event(
+            "session", "session.tab_opened", session=tab_id,
+            kind="test", target=target,
+            ports=",".join(map(str, ports)), bots=bots,
+        )
 
     def _add_scan(
         self,
@@ -3631,6 +3813,11 @@ class SessionScreen(Screen):
         tc = self.query_one("#session-tabs", TabbedContent)
         tc.add_pane(pane)
         tc.active = tab_id
+        eventlog.log_event(
+            "session", "session.tab_opened", session=tab_id,
+            kind="scan", mode=scan_mode, target=target,
+            ports=len(ports), timeout=timeout, concurrency=concurrency,
+        )
 
     def action_close_tab(self) -> None:
         tc = self.query_one("#session-tabs", TabbedContent)
@@ -3644,13 +3831,17 @@ class SessionScreen(Screen):
             panel = pane.query_one(TestPanel)
             panel.cleanup()
         except Exception:
+            eventlog.log_exception("session", "close_tab.cleanup_test", session=active)
             try:
                 pane = tc.query_one(f"#{active}", TabPane)
                 panel = pane.query_one(ScanSessionPanel)
                 panel.cleanup()
             except Exception:
-                pass
+                eventlog.log_exception("session", "close_tab.cleanup_scan", session=active)
 
+        eventlog.log_event(
+            "session", "session.tab_closed", session=active, user_action="CLOSE_TAB"
+        )
         tc.remove_pane(active)
 
     def _tab_count(self) -> int:
@@ -3780,14 +3971,17 @@ class SessionScreen(Screen):
                 p = pane.query_one(TestPanel)
                 p.cleanup()
             except Exception:
-                pass
+                eventlog.log_exception("session", "quit.cleanup_test", session=pane.id)
         for pane in tc.query(ScanTabPane):
             try:
                 p = pane.query_one(ScanSessionPanel)
                 p.cleanup()
             except Exception:
-                pass
+                eventlog.log_exception("session", "quit.cleanup_scan", session=pane.id)
 
+        eventlog.log_event(
+            "app", "app.shutdown", reason="user", user_action="QUIT"
+        )
         self.app.exit()
 
     def _get_active_panel(self) -> TestPanel | ScanSessionPanel | None:
@@ -3942,6 +4136,11 @@ class DOSPingCommandProvider(Provider):
                 self._open_docs,
             ),
             (
+                "Open Logs Folder",
+                "Open the event-log folder in your file manager",
+                self._open_logs_folder,
+            ),
+            (
                 "Open Terminal",
                 "Launch a system terminal window",
                 self._open_terminal,
@@ -4013,7 +4212,16 @@ class DOSPingCommandProvider(Provider):
     async def _export_log(self) -> None:
         p = self._get_panel()
         if p:
+            eventlog.log_event("ui", "ui.export_log", level="verbose", source="UI:palette")
             p.export_log()
+
+    async def _open_logs_folder(self) -> None:
+        ok = eventlog.open_logs_folder()
+        eventlog.log_event(
+            "ui", "ui.logs_folder_opened", source="UI:palette", success=ok
+        )
+        if not ok:
+            self.app.notify("Could not open logs folder", severity="error")
 
     async def _clear_flood(self) -> None:
         p = self._get_panel()
@@ -4081,10 +4289,10 @@ class DOSPingCommandProvider(Provider):
 
 
 class DOSPingApp(App):
-    """DOSping 3.7.0 “Code Red” — Network Stress Testing TUI."""
+    """DOSping 3.7.1 “Code Red” — Network Stress Testing TUI."""
 
     TITLE = "DOSping"
-    SUB_TITLE = "Network Stress Tester 3.7.0 — Code Red"
+    SUB_TITLE = "Network Stress Tester 3.7.1 — Code Red"
 
     DARK = True
 
@@ -4256,10 +4464,35 @@ class DOSPingApp(App):
         return {**super().get_css_variables(), **css_vars()}
 
     def on_mount(self) -> None:
+        # Route asyncio task exceptions into the event log (v3.7.1).
+        try:
+            loop = asyncio.get_running_loop()
+
+            def _loop_handler(loop, context):
+                exc = context.get("exception")
+                if exc is not None:
+                    eventlog.log_error("app", f"asyncio:{context.get('message', '-')}", exc)
+                else:
+                    eventlog.log_event(
+                        "error", "error.exception", level="error",
+                        component="app", context="asyncio",
+                        message=context.get("message", "-"),
+                    )
+
+            loop.set_exception_handler(_loop_handler)
+        except Exception:
+            pass
         # Live theme from config.json (rebuild + apply, v3.7).
         rebuild_from_config()
         apply_live(self)
         self.theme_preset = str(get_config().get("theme.name", "monochrome-red"))
+        eventlog.log_event(
+            "app", "app.start",
+            version=APP_VERSION,
+            python=platform.python_version(),
+            os=f"{platform.system()}-{platform.release()}",
+            terminal=f"{self.app.size.width}x{self.app.size.height}",
+        )
         self.push_screen(SplashScreen())
 
 
@@ -4340,13 +4573,29 @@ def print_session_summary(stats: dict) -> None:
 # ═════════════════════════════════════════════════════════════
 
 
+def _log_crash(exc_type, exc, tb) -> None:
+    """sys/threading excepthook that records pre-UI crashes to the event log."""
+    eventlog.log_error("app", "unhandled", exc)
+
+
 def main():
     """Entry point for the ``dosping`` console command."""
-    app = DOSPingApp()
-    app.run()
-
-    if app.session_stats:
-        print_session_summary(app.session_stats)
+    eventlog.init(get_config(), version=APP_VERSION, codename=APP_CODENAME)
+    sys.excepthook = _log_crash
+    threading.excepthook = (
+        lambda args: eventlog.log_error("app", "thread", args.exc_value or Exception("unknown"))
+    )
+    app = None
+    try:
+        app = DOSPingApp()
+        app.run()
+    except Exception:
+        eventlog.log_exception("app", "main")
+        raise
+    finally:
+        if app is not None and app.session_stats:
+            print_session_summary(app.session_stats)
+        eventlog.shutdown()
 
 
 if __name__ == "__main__":

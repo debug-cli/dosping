@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dosping"
-version = "3.7.0"
+version = "3.7.1"
 description = "Network Stress Testing TUI"
 requires-python = ">=3.12"
 dependencies = [
@@ -16,5 +16,8 @@ dependencies = [
 [project.scripts]
 dosping = "dosping:main"
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
 [tool.setuptools]
-py-modules = ["dosping", "flooder", "scanner", "config", "theme", "settings"]
+py-modules = ["dosping", "flooder", "scanner", "config", "theme", "settings", "eventlog"]

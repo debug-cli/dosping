@@ -23,7 +23,8 @@ Always use a VPN when unauthorized, watch out for honeypots.
 
 A terminal-based network stress testing tool. Floods a target with concurrent TCP connections while monitoring connectivity through ICMP ping and TCP port probes in real time. Three-panel split layout. Multi-tab sessions. Built with Python, Textual, and asyncio.
 
-**DOSping 3.7.0 “Code Red”** adds **Advanced Settings** — open the full editor in-app (`⚙ SETTINGS → Advanced → Open…`) or standalone (`python settings.py`) — with **live theme switching**, confirmation dialogs, change toasts, and an About panel. On top of v3.5's foundations: a full **configuration system** (`config.json`), a **monochrome/red theme** with a **fully transparent background** (acrylic/blur-friendly), **strength presets**, and **glitching ASCII art** on the home screen.
+**DOSping 3.7.1 “Code Red”** adds **Advanced Settings** — open the full editor in-app (`⚙ SETTINGS → Advanced → Open…`) or standalone (`python settings.py`) — with **live theme switching**, confirmation dialogs, change toasts, and an About panel. On top of v3.5's foundations: a full **configuration system** (`config.json`), a **monochrome/red theme** with a **fully transparent background** (acrylic/blur-friendly), **strength presets**, and **glitching ASCII art** on the home screen.  
+New in 3.7.1: a verbose **event log** (`logs/dosping-YYYY-MM-DD.log`) recording every significant action — see [Event log](#event-log) below.
 
 📖 **[Full documentation →](https://dosping-docs.vercel.app)**
 
@@ -116,6 +117,21 @@ The editor (same code either way) covers every option with arrow/Tab navigation,
 Toggle with `Ctrl+A` (or the `⚙ Advanced Settings` button). Sections: **Attack Engine**, **Scanner Engine**, **Logging**, **Interface**, **Sessions**, **Network**, **Safety**, and a **Danger Zone** (Reset Advanced / Factory Reset — both behind confirmation dialogs). The Advanced view also has an **About** panel (version, repo + docs links, config path) and the disclaimer.
 
 Everything you change — theme, presets, advanced switches, and the **Default View Mode** from the in-app settings modal — is written straight to `config.json` and restored on the next launch.
+
+The **Logging** section now controls the on-disk event log too: **Log To Disk** (master toggle), **Verbosity** (minimal / normal / verbose / debug), **Delete Logs After** (1–90 days / never), **Max Log Storage** (10–250 MB / unlimited), plus **↗ Open Logs Folder** and **✕ Clear All Logs** (confirmation-protected).
+
+### Event log
+
+DOSping 3.7.1 keeps a structured event log next to `config.json`:
+
+- **Location** — `logs/dosping-YYYY-MM-DD.log` (daily files, size-rotated with a `.N` suffix past 5 MB).
+- **Format** — one plain-text event per line:
+  `[2026-09-14 21:04:29.140] [INFO ] [flood] [tab-1] flood.workers_spawned bots=200 concurrency=200 packet_size=512B reuse_payload=true ports=80,443`
+  Fields are `key=value` (grep-friendly); strings with spaces are quoted; banners are truncated and sanitized.
+- **Coverage** — app startup/shutdown (version, OS, Python, terminal size), config load/save/reset (with changed keys), session tabs opened/closed, setup validation and rejections, attack started/stopped/finished (duration, connections, success rate), flood-engine aggregate stats every 10 s with error classes (refused / timeout / DNS), scanner milestones, open ports and banners, every settings change (old → new), and every caught exception with component and context.
+- **Verbosity levels** — `minimal` (lifecycle + errors only) · `normal` (default, day-to-day events) · `verbose` (+ full setup params, monitor toggles, health checks, banners) · `debug` (+ GeoIP results, latency samples).
+- **Retention** — files older than *Delete Logs After* are removed at startup (never today's file), and the folder is capped at *Max Log Storage*; **Clear All Logs** wipes everything except today's file behind a confirmation.
+- **Privacy** — logs record the targets *you* test (IPs, open ports, banners) and never your full `config.json`. Turn the whole thing off with **Log To Disk = off**.
 
 ### Strength presets
 

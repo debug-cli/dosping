@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DOSping 3.7.0 “Code Red” — Documentation</title>
+        <title>DOSping 3.7.1 “Code Red” — Documentation</title>
         <meta
             name="description"
             content="DOSping network stress testing TUI. Complete documentation covering every feature, command, and configuration option."
@@ -409,7 +409,7 @@
                         >ing <span class="bright">│</span>
                         <span class="bright">└──────────────┘</span>
                     </div>
-                    <div class="logo-ver">3.7.0 “Code Red” docs</div>
+                    <div class="logo-ver">3.7.1 “Code Red” docs</div>
                 </div>
 
                 <span class="section-label">start</span>
@@ -442,6 +442,7 @@
                 <a href="#palette">command palette</a>
                 <a href="#shortcuts">shortcuts</a>
                 <a href="#export">log export</a>
+                <a href="#logging">event log</a>
                 <a href="#themes">themes</a>
                 <a href="#terminal">terminal</a>
 
@@ -615,7 +616,7 @@ dosping            # or: python dosping.py</code></pre>
 
                 <h2 id="architecture">Architecture</h2>
 
-                <p>DOSping is two Python files:</p>
+                <p>DOSping's Python modules:</p>
 
                 <table>
                     <tr>
@@ -625,7 +626,7 @@ dosping            # or: python dosping.py</code></pre>
                     </tr>
                     <tr>
                         <td><code>dosping.py</code></td>
-                        <td>~3200</td>
+                        <td>~4300</td>
                         <td>
                             All UI: screens, widgets, command palette, tab
                             management, view modes, stats display, exit summary
@@ -633,7 +634,7 @@ dosping            # or: python dosping.py</code></pre>
                     </tr>
                     <tr>
                         <td><code>flooder.py</code></td>
-                        <td>~223</td>
+                        <td>~290</td>
                         <td>
                             Async TCP flood engine. No UI dependencies. Accepts
                             callbacks for progress, logging, and per-connection
@@ -642,10 +643,20 @@ dosping            # or: python dosping.py</code></pre>
                     </tr>
                     <tr>
                         <td><code>scanner.py</code></td>
-                        <td>~192</td>
+                        <td>~330</td>
                         <td>
                             Async TCP port scanner engine. Protocol
                             fingerprinting, banner grabbing, device detection.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>eventlog.py</code> <em>(3.7.1)</em></td>
+                        <td>~470</td>
+                        <td>
+                            Queue-backed event logger: plain-text
+                            <code>key=value</code> lines, daily + size rotation,
+                            startup retention cleanup. See
+                            <a href="#logging">Event Log</a>.
                         </td>
                     </tr>
                 </table>
@@ -830,7 +841,7 @@ dosping            # or: python dosping.py</code></pre>
                 <h3>Layout</h3>
                 <div class="diagram">
                     ┌─────────────────────────────────────────────────┐ │
-                    DOSPING 3.7.0                                       │ ← header
+                    DOSPING 3.7.1                                       │ ← header
                     ├─────────────────────────────────────────────────┤ │ │ │
                     ┌──────────────────┐ ┌──────────────────┐ │ │ │ PORT SCANNER
                     │ │ ATTACKER │ │ ← tiles │ │ (radar art) │ │ (flame art) │ │
@@ -878,7 +889,7 @@ dosping            # or: python dosping.py</code></pre>
 
                 <h3>Header</h3>
                 <p>
-                    The header text <code>DOSPING 3.7.0</code> is a clean static
+                    The header text <code>DOSPING 3.7.1</code> is a clean static
                     title (the earlier glitch animation rendered unreliably across
                     terminal fonts and was removed in 3.7.0). The animated
                     character effects remain on the splash screen and the
@@ -1017,7 +1028,12 @@ dosping            # or: python dosping.py</code></pre>
                             <code>geoip_enabled</code>,
                             <code>timestamped_logs</code>,
                             <code>conn_delay_ms</code>,
-                            <code>reuse_payload</code> — all mirrored in the
+                            <code>reuse_payload</code>,
+                            <code>logging</code> <em>(3.7.1: <code>enabled</code>,
+                            <code>level</code> minimal/normal/verbose/debug,
+                            <code>retention_days</code>,
+                            <code>max_total_mb</code>,
+                            <code>max_file_mb</code>)</em> — all mirrored in the
                             <a href="#settings">Settings</a> modal
                             (<code>⚙ Advanced</code>) and in
                             <code>settings.py</code> (<code>Ctrl+A</code>)
@@ -1028,7 +1044,9 @@ dosping            # or: python dosping.py</code></pre>
                 <h3>Advanced Settings, toasts &amp; confirmations</h3>
                 <p>
                     3.7.0 splits settings into <strong>Basic</strong> and
-                    <strong>Advanced</strong> views. Open Advanced from the
+                    <strong>Advanced</strong> views; 3.7.1 extends the Advanced
+                    <em>Logging</em> section with on-disk event-log controls (see
+                    <a href="#logging">Event Log</a>). Open Advanced from the
                     Settings modal (<code>⚙ Advanced → Open…</code>) or with
                     <code>Ctrl+A</code> in the editor. Every
                     change pops a small <em>toast</em> confirming the new
@@ -1930,6 +1948,187 @@ CONNECTIVITY LOG:
                     Files written to cwd.
                 </p>
 
+                <h2 id="logging">Event Log</h2>
+
+                <p>
+                    New in <strong>3.7.1</strong>: DOSping keeps a structured
+                    <strong>event log</strong> on disk — a verbose, grep-friendly
+                    audit trail of everything the app and its engines do, kept
+                    next to <code>config.json</code>.
+                </p>
+
+                <h3>Where the logs live</h3>
+                <pre><code>logs/
+├── dosping-2026-09-14.log   ← today's file (active)
+├── dosping-2026-09-13.log
+└── dosping-2026-09-12.1.log ← size-rotated (.N suffix past 5 MB)</code></pre>
+                <p>
+                    One file per local calendar day, stored in a <code>logs/
+                    </code> folder beside <code>dosping.py</code>. When a file
+                    grows past the per-file cap it is rotated to
+                    <code>.1/.2/…</code> suffixes.
+                </p>
+
+                <h3>How a log line is built</h3>
+                <p>
+                    Every event is one plain-text line with seven parts:
+                </p>
+                <div class="diagram">[ts] [level] [category] [session] event key=value …</div>
+                <table>
+                    <tr><th>Field</th><th>Meaning</th></tr>
+                    <tr>
+                        <td><code>ts</code></td>
+                        <td>local timestamp with milliseconds —
+                            <code>2026-09-14 21:04:11.482</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>level</code></td>
+                        <td><code>DEBUG</code>, <code>INFO</code>,
+                            <code>WARN</code> or <code>ERROR</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>category</code></td>
+                        <td><code>app</code> · <code>config</code> ·
+                            <code>session</code> · <code>flood</code> ·
+                            <code>scanner</code> · <code>settings</code> ·
+                            <code>ui</code> · <code>error</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>session</code></td>
+                        <td>session/tab id (<code>tab-1</code>,
+                            <code>scan-2</code>) or <code>-</code> for
+                            app-global events</td>
+                    </tr>
+                    <tr>
+                        <td><code>event</code></td>
+                        <td>snake_case event name, e.g.
+                            <code>flood.workers_spawned</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>key=value …</code></td>
+                        <td>structured details: booleans as
+                            <code>true/false</code>, bytes as <code>512B</code>,
+                            durations as <code>102.4s</code>; strings containing
+                            spaces are quoted, newlines/tabs escaped and long
+                            values truncated (banners 120 chars) so one event
+                            is always exactly one line</td>
+                    </tr>
+                </table>
+
+                <h3>Example lines</h3>
+                <pre><code>[2026-09-14 21:04:11.482] [INFO ] [app] [-] app.start version=3.7.1 python=3.12.7 os=Windows-11 terminal=120x38
+[2026-09-14 21:04:11.517] [INFO ] [config] [-] config.load path=config.json changed_keys=0
+[2026-09-14 21:04:29.130] [INFO ] [session] [tab-1] session.tab_opened kind=test target=203.0.113.7 ports=80,443 bots=200
+[2026-09-14 21:04:29.140] [INFO ] [flood] [tab-1] flood.workers_spawned bots=200 concurrency=200 packet_size=512B reuse_payload=true ports=80,443
+[2026-09-14 21:04:39.141] [INFO ] [flood] [tab-1] flood.stats interval=10.0s attempts=1842 ok=1203 fail=639 cps=184.2 errors=refused:610,timeout:29
+[2026-09-14 21:06:11.902] [INFO ] [session] [tab-1] session.attack_finished duration=102.4s attempts=18874 ok=12293 fail=6581 success_rate=65.1%
+[2026-09-14 21:07:03.842] [INFO ] [scanner] [scan-2] scan.open_port port=443 protocol=https device="Web Server" latency=31.2ms
+[2026-09-14 21:09:44.733] [INFO ] [settings] [-] settings.changed key=advanced.logging.level old=normal new=verbose
+[2026-09-14 21:10:01.905] [ERROR] [error] [tab-1] error.exception component=TestPanel context=_icmp_loop exc=OSError</code></pre>
+
+                <h3>What gets logged</h3>
+                <ul>
+                    <li><strong>App lifecycle</strong> — startup (version, OS,
+                        Python, terminal size), clean shutdown vs crash,
+                        unhandled exceptions on the main thread, worker threads
+                        and the asyncio loop.</li>
+                    <li><strong>Config</strong> — load (with migration notes),
+                        save (with the changed keys), section resets and factory
+                        resets.</li>
+                    <li><strong>Sessions</strong> — setup modal opened, every
+                        validation rejection (field + reason), validated
+                        parameters, tabs opened/closed, attack started / stopped
+                        (by whom) / finished (duration, attempts, ok/fail,
+                        success rate, bytes), scan started, monitor toggles.</li>
+                    <li><strong>Flood engine</strong> — worker pool spawned
+                        (bots, concurrency, packet size, payload reuse),
+                        aggregate stats every <strong>10 seconds</strong> (never
+                        per-packet: a 1000-bot flood produces ~6 lines/minute,
+                        not thousands), sampled connection errors with reason
+                        classes (<code>refused</code> / <code>timeout</code> /
+                        <code>cancel</code> / <code>dns</code> /
+                        <code>other</code>), target health-check results.</li>
+                    <li><strong>Scanner</strong> — scan started (mode, target,
+                        port count, concurrency, timeouts, banner grab),
+                        progress milestones at 10 / 25 / 50 / 75 / 100&nbsp;%,
+                        each open port with protocol/fingerprint/latency, banner
+                        contents (verbose+), finished summary.</li>
+                    <li><strong>Settings</strong> — every change (old → new),
+                        presets applied/created/deleted, theme changes, factory
+                        reset, editor discarded.</li>
+                </ul>
+
+                <h3>Verbosity levels</h3>
+                <table>
+                    <tr><th>Level</th><th>Included</th></tr>
+                    <tr>
+                        <td><code>minimal</code></td>
+                        <td>app start/shutdown/crash, all errors, attack &amp;
+                            scan start/finish</td>
+                    </tr>
+                    <tr>
+                        <td><code>normal</code> <em>(default)</em></td>
+                        <td>everything above + config load/save, tab
+                            open/close, setup rejections, flood worker/stats
+                            events, scan milestones &amp; open ports, settings
+                            changes</td>
+                    </tr>
+                    <tr>
+                        <td><code>verbose</code></td>
+                        <td>everything above + full setup parameters, monitor
+                            toggles, health checks, banner contents, theme
+                            changes, exports</td>
+                    </tr>
+                    <tr>
+                        <td><code>debug</code></td>
+                        <td>everything above + GeoIP results, latency samples,
+                            diagnostics</td>
+                    </tr>
+                </table>
+                <p>
+                    Errors are always recorded at every level (subject only to
+                    the master toggle).
+                </p>
+
+                <h3>Rotation &amp; retention</h3>
+                <ul>
+                    <li><strong>Daily rotation</strong> — a new file per local
+                        date; <strong>size rotation</strong> past 5 MB per file
+                        (<code>.1</code>, <code>.2</code>, … suffixes).</li>
+                    <li><strong>Age cleanup</strong> — <em>Delete Logs After</em>
+                        (1 / 7 / 14 / 30 / 90 days / never) removes old files
+                        <strong>once at startup</strong>, based on the date in
+                        the filename (immune to clock-skewed mtimes). Today's
+                        active file is never deleted.</li>
+                    <li><strong>Size cleanup</strong> — <em>Max Log Storage</em>
+                        (10 / 25 / 50 / 100 / 250 MB / unlimited) caps the whole
+                        <code>logs/</code> folder by deleting the oldest files
+                        first (again never today's file).</li>
+                    <li><strong>Manual wipe</strong> — <em>✕ Clear All Logs</em>
+                        in the settings editor deletes everything except
+                        today's file and asks for confirmation first
+                        (respecting <em>Confirm Dangerous</em>).</li>
+                    <li>Files locked by another process (Windows) are skipped
+                        and retried on the next launch — cleanup never crashes
+                        the app.</li>
+                </ul>
+
+                <h3>Performance &amp; privacy</h3>
+                <ul>
+                    <li>Writers never block the UI: events go through an
+                        in-memory queue drained by a background thread, and a
+                        gated event costs two integer compares.</li>
+                    <li>Every record is flushed as it is written, so a crash
+                        loses at most the line being written.</li>
+                    <li>Logs record the targets <em>you</em> test (IPs, ports,
+                        banners) — that is their purpose — but never your full
+                        <code>config.json</code>, and payloads are never
+                        written.</li>
+                    <li><strong>Log To Disk = off</strong> disables everything:
+                        no file is created or opened, and the in-app log panels
+                        are unaffected.</li>
+                </ul>
+
                 <h2 id="themes">Themes</h2>
 
                 <p>
@@ -2315,6 +2514,15 @@ CONNECTIVITY LOG:
                         </td>
                     </tr>
                     <tr>
+                        <td><code>eventlog.py</code> <em>(3.7.1)</em></td>
+                        <td>
+                            Queue-backed event logger — structured plain-text
+                            lines to <code>logs/dosping-YYYY-MM-DD.log</code>,
+                            rotation + retention (see
+                            <a href="#logging">Event Log</a>).
+                        </td>
+                    </tr>
+                    <tr>
                         <td><code>settings.py</code></td>
                         <td>
                             Standalone settings TUI (<code>python
@@ -2422,6 +2630,32 @@ CONNECTIVITY LOG:
                         <th>Version</th>
                         <th>Date</th>
                         <th>Changes</th>
+                    </tr>
+                    <tr>
+                        <td><strong>3.7.1 “Code Red”</strong></td>
+                        <td>2026-09-14</td>
+                        <td>
+                            <ul>
+                                <li>
+                                    <strong>Advanced event logging</strong> — new <code>eventlog.py</code>: a queue-backed, non-blocking logger writing structured plain-text lines (timestamp · level · category · session id · event · key=value fields) to <code>logs/dosping-YYYY-MM-DD.log</code> with daily + size rotation and flush-per-record durability. Zero impact when disabled.
+                                </li>
+                                <li>
+                                    <strong>Verbose coverage</strong> — app startup/shutdown (version, OS, Python, terminal size), config load/save/reset with changed keys, session tabs opened/closed, setup validation and rejections, attack started/stopped/finished (duration, connections, success rate), flood-engine 10-second aggregate stats with error classes (refused/timeout/DNS), scanner milestones, open ports and banners, every settings change (old → new), and every caught exception with component and context. New <em>Open Logs Folder</em> command in the palette.
+                                </li>
+                                <li>
+                                    <strong>Logging settings</strong> — the Advanced → Logging section gains <em>Log To Disk</em> master toggle, <em>Verbosity</em> (minimal / normal / verbose / debug), <em>Delete Logs After</em> (1–90 days / never), <em>Max Log Storage</em> (10–250 MB / unlimited), <em>↗ Open Logs Folder</em> and <em>✕ Clear All Logs</em> (confirmation-protected). Retention cleanup runs safely at startup and never deletes today's file. New keys live under <code>advanced.logging</code> and existing configs migrate automatically.
+                                </li>
+                                <li>
+                                    <strong>Privacy</strong> — logs record the targets you test but never your full <code>config.json</code>; banners are truncated and sanitized; payloads are never written.
+                                </li>
+                                <li>
+                                    <strong>Docs</strong> — new <a href="#logging">Event Log</a> section documenting exactly how the logs are built (line format, fields, levels, rotation, retention).
+                                </li>
+                                <li>
+                                    Version strings unified to 3.7.1 across the app, pyproject.toml, docs, README and both installers.
+                                </li>
+                            </ul>
+                        </td>
                     </tr>
                     <tr>
                         <td><strong>3.7.0 “Code Red”</strong></td>

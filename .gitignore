@@ -6,6 +6,7 @@ dist/
 build/
 config.json
 config.json.tmp
+logs/
 
 # Freebuff session artifacts
 .freebuff/
