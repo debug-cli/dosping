@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  scanner.py  —  DOSping v3.5 Async Port Scanner
+#  scanner.py  —  DOSping 3.7.0 Async Port Scanner
 # ═══════════════════════════════════════════════════════════════
 #  Pure Python TCP scanner for DOSping's Port Scanner mode.
 #  No nmap dependency. No administrator requirement.
@@ -57,12 +57,14 @@ class PortScannerEngine:
         timeout: float = 0.75,
         banner_timeout: float = 0.45,
         concurrency: int = 128,
+        banner_grab: bool = True,
     ) -> None:
         self.host = host
         self.ports = sorted(set(int(p) for p in ports))
         self.timeout = timeout
         self.banner_timeout = banner_timeout
         self.concurrency = concurrency
+        self.banner_grab = banner_grab
         self.semaphore = asyncio.Semaphore(concurrency)
 
     async def scan(self) -> list[ScanResult]:
@@ -89,7 +91,10 @@ class PortScannerEngine:
                     latency_ms=self._elapsed_ms(start),
                 )
 
-            protocol, banner = await self._grab_banner(reader, writer, port)
+            if self.banner_grab:
+                protocol, banner = await self._grab_banner(reader, writer, port)
+            else:
+                protocol, banner = "unknown", ""
             device = self._fingerprint_device(port, protocol, banner)
             state = "accessible" if protocol != "unknown" else "online"
             return ScanResult(
@@ -207,6 +212,7 @@ class NetworkScanEngine:
         banner_timeout: float = 0.45,
         concurrency: int = 64,
         host_concurrency: int = 20,
+        banner_grab: bool = True,
     ) -> None:
         self.network = ipaddress.ip_network(subnet, strict=False)
         self.ports = sorted(set(int(p) for p in ports))
@@ -214,6 +220,7 @@ class NetworkScanEngine:
         self.banner_timeout = banner_timeout
         self.concurrency = concurrency
         self.host_concurrency = host_concurrency
+        self.banner_grab = banner_grab
 
     async def scan(self) -> list[ScanResult]:
         """Return flat sorted list of open/accessible ports across all hosts."""
@@ -228,6 +235,7 @@ class NetworkScanEngine:
                     timeout=self.timeout,
                     banner_timeout=self.banner_timeout,
                     concurrency=self.concurrency,
+                    banner_grab=self.banner_grab,
                 )
                 results = await engine.scan()
                 return [r for r in results if r.state != "offline"]

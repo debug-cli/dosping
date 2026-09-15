@@ -23,6 +23,8 @@ Always use a VPN when unauthorized, watch out for honeypots.
 
 A terminal-based network stress testing tool. Floods a target with concurrent TCP connections while monitoring connectivity through ICMP ping and TCP port probes in real time. Three-panel split layout. Multi-tab sessions. Built with Python, Textual, and asyncio.
 
+**DOSping 3.7.0 “Code Red”** adds **Advanced Settings** — open the full editor in-app (`⚙ SETTINGS → Advanced → Open…`) or standalone (`python settings.py`) — with **live theme switching**, confirmation dialogs, change toasts, and an About panel. On top of v3.5's foundations: a full **configuration system** (`config.json`), a **monochrome/red theme** with a **fully transparent background** (acrylic/blur-friendly), **strength presets**, and **glitching ASCII art** on the home screen.
+
 📖 **[Full documentation →](https://dosping-docs.vercel.app)**
 
 ---
@@ -65,21 +67,86 @@ pkg update -y && pkg install -y git python && curl -fsSL https://raw.githubuserc
 git clone https://github.com/debug-cli/dosping.git && cd dosping && setup.bat
 ```
 
-> Requires Python 3.12+ and git. Setup scripts auto-clone the repo, create a venv, install deps, and launch.
+**Manual install:**
+
+```bash
+git clone https://github.com/debug-cli/dosping.git && cd dosping
+python3 -m venv .venv
+.venv/bin/pip install -e .          # Windows: .venv\Scripts\pip install -e .
+.venv/bin/dosping                    # Windows: .venv\Scripts\dosping
+```
+
+> Requires **Python 3.12+** and git. The setup scripts auto-clone the repo, create a venv, verify the install, register the `dosping` command, and launch.
+>
+> **Installer options:** `--no-run` (install without launching) and `--reinstall` (recreate the venv from scratch).
+
+### Best viewed in a transparent terminal
+
+DOSping renders on a **fully transparent background** — no hardcoded blacks. For the full effect, enable acrylic/blur in your terminal:
+
+- **Windows Terminal** → Settings → your profile → Appearance → **Transparency** (drag to ~60%) and enable **Acrylic**
+- **Kitty** → `background_opacity 0.85`
+- **Alacritty** → `opacity: 0.85` (`background_opacity` pre-0.13)
+
+The only opaque surface is the bottom command bar, so text stays readable.
+
+---
+
+## Configuration
+
+Everything is configurable via **`config.json`** (auto-created next to `dosping.py` on first save). Open the editor **inside the app** via `⚙ SETTINGS → Advanced → Open…`, or standalone:
+
+```bash
+python settings.py
+```
+
+The editor (same code either way) covers every option with arrow/Tab navigation, input validation, ESC to save & exit (Ctrl+D discards and reverts the live theme), change toasts, and confirmation dialogs for dangerous actions. Theme changes restyle the editor **live** — no restart needed. Every value (theme, accent, view mode, attacker/scanner defaults, advanced keys, active preset) persists to `config.json` — even opening the editor and pressing ESC without touching anything will never overwrite your saved settings.
+
+| Section | Options |
+|---|---|
+| **Theme** | Theme (monochrome-red / monochrome), accent colour, background transparency — applied live |
+| **Attacker** | Default target IP, attack method, thread count, packet size (8–8192 B), connect timeout |
+| **Scanner** | Scan mode (single host / CIDR network), default target, port list, connect/banner timeouts, concurrency slots |
+| **Presets** | Built-in strength presets + your own custom presets |
+| **UI** | Animation speed (slow / normal / fast), ASCII glitch effects on/off |
+| **Advanced** | Attack engine tuning (timeouts, per-bot delay, payload reuse), scanner banner grab, logging caps + timestamps, session limits, GeoIP, safety guards — see below |
+
+### Advanced settings
+
+Toggle with `Ctrl+A` (or the `⚙ Advanced Settings` button). Sections: **Attack Engine**, **Scanner Engine**, **Logging**, **Interface**, **Sessions**, **Network**, **Safety**, and a **Danger Zone** (Reset Advanced / Factory Reset — both behind confirmation dialogs). The Advanced view also has an **About** panel (version, repo + docs links, config path) and the disclaimer.
+
+Everything you change — theme, presets, advanced switches, and the **Default View Mode** from the in-app settings modal — is written straight to `config.json` and restored on the next launch.
+
+### Strength presets
+
+One-click strength levels, selectable in the scanner setup **and** in `settings.py`:
+
+| Preset | Scanner Threads | Scanner Timeout | Attacker Threads | Attacker Packet Size |
+|--------|-----------------|-----------------|------------------|----------------------|
+| Low    | 64              | 1.5 s           | 50               | 64 B                 |
+| Medium | 256             | 0.75 s          | 200              | 512 B                |
+| High   | 1024            | 0.3 s           | 1000             | 1024 B               |
+
+You can also save the current values as a **custom preset** (`✚ Save Custom From Current` in `settings.py`) — custom presets are stored in `config.json` and can be deleted later.
+
+> On this screen every interactive element now carries a visible label: **Scan Mode**, **Target**, **Quick Presets**, **Ports**, **Strength Preset**, and **Timeouts & Concurrency** are all rendered with readable buttons.
 
 ---
 
 ## Features
 
+- **Config everything** — `config.json` + the settings editor (in-app or `python settings.py`), Basic + Advanced levels, live theming
+- **Strength presets** — Low / Medium / High for scanner and attacker, plus custom presets
+- **Transparent background** — monochrome + red ANSI theme; blur-enabled terminals show through natively
 - **Multi-tab sessions** — up to 4 simultaneous tests, each independent
 - **Three-panel layout** — flood log, connectivity monitor, live stats sidebar
 - **Live stats** — conn/s, success rate, bytes sent, uptime, updated every second
 - **Dual monitoring** — ICMP ping + TCP port probes running in parallel
-- **Command palette** (`Ctrl+P`) — 11 custom commands: new test, stop, reset, export, toggles, and more
+- **Host & network scanning** — single-host port scans or full CIDR subnet sweeps with banner grabbing
+- **Command palette** (`Ctrl+P`) — opens with all 17 commands listed (type to filter): new test/scan, stop, reset, export, monitor toggles, view modes, docs and more
+- **Glitching ASCII** — splash reveal, KITT scanner bar, and per-tile glitch effects (toggleable, speed-configurable)
 - **Log export** — save session logs to timestamped .txt files
-- **Tab spinners** — animated indicators on active tabs, checkmarks on completed
-- **Themeable** — ships with DOSping Matrix, switch to nord/gruvbox/others via palette
-- **Matrix splash** — animated character-reveal on launch with KITT scanner bar
+- **Keyboard-first** — persistent key-hint bar on every screen; ESC always goes back
 - **Exit summary** — formatted report (target, hits/misses, success rate) on quit
 - **Cross-platform** — Windows, Linux, macOS
 
@@ -89,11 +156,23 @@ git clone https://github.com/debug-cli/dosping.git && cd dosping && setup.bat
 
 | Key | Action |
 |---|---|
+| `↑/↓/←/→` | Navigate tiles / fields |
+| `Tab` | Cycle fields (config screens) |
+| `Enter` | Select / confirm |
+| `ESC` | Back (any submenu / settings) |
 | `Ctrl+P` | Command palette |
 | `Ctrl+N` | New test tab |
+| `Ctrl+Shift+N` | New scan tab |
 | `Ctrl+W` | Close tab |
 | `s` | Stop flood |
+| `r` | Reset test |
+| `i` / `t` | Toggle ICMP / TCP monitors |
+| `e` | Export session log |
+| `Ctrl+M` | Cycle view mode (SKID / ADVANCED / IT) |
+| `?` / `F1` | Cheat sheet |
 | `q` | Quit |
+
+Every screen shows the shortcuts available in its context in the bar at the bottom.
 
 ---
 
@@ -102,7 +181,12 @@ git clone https://github.com/debug-cli/dosping.git && cd dosping && setup.bat
 ```
 dosping/
 ├── dosping.py          Main TUI
-├── flooder.py          TCP flood engine
+├── flooder.py          TCP flood engine (config-driven packet size)
+├── scanner.py          Port + network scan engines
+├── config.py           config.json load/save/repair + presets API
+├── theme.py            Semantic THEME dict (monochrome + red, transparent bg)
+├── settings.py         Standalone settings TUI (python settings.py)
+├── config.json         Auto-generated at runtime (gitignored)
 ├── requirements.txt    Dependencies
 ├── setup.bat           Windows installer
 ├── setup.sh            Linux/macOS installer
@@ -110,7 +194,3 @@ dosping/
 └── docs/
     └── index.html      Full documentation
 ```
-
----
-
-**FOR PENETRATION TESTING AND EDUCATIONAL PURPOSES ONLY.** If you use this to crash servers without written authorization, you will end up in jail. Have fun responsibly.

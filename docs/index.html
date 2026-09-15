@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DOSping v3.5 — Documentation</title>
+        <title>DOSping 3.7.0 “Code Red” — Documentation</title>
         <meta
             name="description"
             content="DOSping network stress testing TUI. Complete documentation covering every feature, command, and configuration option."
@@ -409,7 +409,7 @@
                         >ing <span class="bright">│</span>
                         <span class="bright">└──────────────┘</span>
                     </div>
-                    <div class="logo-ver">v3.5 docs</div>
+                    <div class="logo-ver">3.7.0 “Code Red” docs</div>
                 </div>
 
                 <span class="section-label">start</span>
@@ -434,6 +434,7 @@
                 <span class="section-label">home screen</span>
                 <a href="#home-screen">home screen</a>
                 <a href="#settings">settings</a>
+                <a href="#config">config &amp; presets</a>
                 <a href="#port-scanner">port scanner</a>
                 <a href="#scanner-engine">scanner engine</a>
 
@@ -506,9 +507,12 @@
                 <div class="note">
                     <strong>Requirements:</strong> Python 3.12+ and git. The
                     setup scripts create a virtual environment in
-                    <code>.venv</code>, install all packages from
-                    <code>requirements.txt</code>, and launch
-                    <code>dosping.py</code> automatically.
+                    <code>.venv</code>, upgrade pip, install the
+                    <code>dosping</code> package, verify it imports, register
+                    the <code>dosping</code> command on your PATH, and launch
+                    the TUI. Both scripts accept <code>--no-run</code> (install
+                    without launching) and <code>--reinstall</code> (recreate
+                    the venv from scratch).
                 </div>
 
                 <h2 id="manual-install">Manual Installation</h2>
@@ -521,8 +525,8 @@ python -m venv .venv
 # Windows:    .venv\Scripts\activate
 # Linux/Mac:  source .venv/bin/activate
 
-pip install -r requirements.txt
-python dosping.py</code></pre>
+pip install -e .
+dosping            # or: python dosping.py</code></pre>
 
                 <h3>Dependencies</h3>
                 <table>
@@ -692,9 +696,7 @@ python dosping.py</code></pre>
 
                 <h2 id="view-modes">View Modes</h2>
 
-                <p>
-                    v3.5 introduces three view modes that control which panels
-                    are visible and how much detail is shown. Defined by the
+                <p>DOSping has three view modes that control which panels are visible and how much detail is shown. Defined by the
                     <code>ViewMode</code> enum.
                 </p>
 
@@ -761,7 +763,7 @@ python dosping.py</code></pre>
                     Press any key to advance to the Home Screen.
                 </p>
                 <p>
-                    <strong>HomeScreen</strong> is the new v3.5 landing screen.
+                    <strong>HomeScreen</strong> is the landing screen.
                     Select ATTACKER (flood mode), PORT SCANNER (scan mode), or
                     open Settings.
                 </p>
@@ -820,7 +822,7 @@ python dosping.py</code></pre>
                 <h2 id="home-screen">Home Screen</h2>
 
                 <p>
-                    The Home Screen is the v3.5 landing screen that replaces the
+                    The Home Screen is the landing screen that replaced the
                     old direct-to-session flow. It appears after the splash
                     animation completes.
                 </p>
@@ -828,7 +830,7 @@ python dosping.py</code></pre>
                 <h3>Layout</h3>
                 <div class="diagram">
                     ┌─────────────────────────────────────────────────┐ │
-                    DOSPING v3.5 [glitch animation on right] │ ← header
+                    DOSPING 3.7.0                                       │ ← header
                     ├─────────────────────────────────────────────────┤ │ │ │
                     ┌──────────────────┐ ┌──────────────────┐ │ │ │ PORT SCANNER
                     │ │ ATTACKER │ │ ← tiles │ │ (radar art) │ │ (flame art) │ │
@@ -874,12 +876,13 @@ python dosping.py</code></pre>
                     </tr>
                 </table>
 
-                <h3>Animated Header</h3>
+                <h3>Header</h3>
                 <p>
-                    The header text <code>DOSPING v3.5</code> has a live glitch
-                    animation: the left portion is solid white/amber, while the
-                    right edge continuously cycles through random glitch
-                    characters. This mirrors the splash screen animation style.
+                    The header text <code>DOSPING 3.7.0</code> is a clean static
+                    title (the earlier glitch animation rendered unreliably across
+                    terminal fonts and was removed in 3.7.0). The animated
+                    character effects remain on the splash screen and the
+                    home-screen tiles.
                 </p>
 
                 <h2 id="settings">Settings</h2>
@@ -888,7 +891,8 @@ python dosping.py</code></pre>
                     The Settings modal is accessible from the Home Screen's
                     <code>⚙ SETTINGS</code> button or by pressing
                     <code>s</code>/<code>Esc</code> on the Home Screen. Changes
-                    apply instantly for the current session.
+                    apply instantly for the current session and are persisted
+                    to <code>config.json</code>.
                 </p>
 
                 <h3>Available Toggles</h3>
@@ -904,50 +908,199 @@ python dosping.py</code></pre>
                         <td>Changes the active view mode for all panels</td>
                     </tr>
                     <tr>
-                        <td>Matrix Animation</td>
+                        <td>ASCII Effects</td>
                         <td>ON / OFF</td>
-                        <td>Toggles the glitch animation on the HomeHeader</td>
+                        <td>
+                            Toggles all glitch animations (header, tiles, KITT
+                            bar) at once
+                        </td>
                     </tr>
                     <tr>
-                        <td>KITT Animation</td>
-                        <td>ON / OFF</td>
-                        <td>Toggles the KITT scanner bar animation</td>
+                        <td>Anim Speed</td>
+                        <td>Slow / Normal / Fast</td>
+                        <td>Scales every animation timer</td>
                     </tr>
                     <tr>
                         <td>Theme</td>
-                        <td>Matrix → Blue → Red (cycles)</td>
-                        <td>Switches the color theme across the entire app</td>
+                        <td>Mono → Mono Bright → Mono Dim (cycles)</td>
+                        <td>Accent intensity of the monochrome/red theme</td>
                     </tr>
                 </table>
 
-                <h3>Themes</h3>
+                <p>
+                    For the full configuration surface — attacker defaults,
+                    scanner defaults, presets, transparency — run the
+                    standalone editor: <code>python settings.py</code> (see
+                    <a href="#config">Config &amp; Presets</a> below).
+                </p>
+
+                <h2 id="config">Configuration &amp; Presets</h2>
+
+                <p>
+                    Everything persists to <code>config.json</code>, generated
+                    next to <code>dosping.py</code> on first save. A missing or
+                    hand-broken file is auto-repaired from defaults. Edit it
+                    from inside the app (<code>⚙ SETTINGS → Advanced →
+                    Open…</code>) or the standalone editor:
+                </p>
+
+                <pre><code>python settings.py</code></pre>
+
+                <p>
+                    The settings editor (the same screen both ways) covers
+                    every option with Tab/arrow navigation, cycling choice
+                    buttons, validation, preset management, change toasts,
+                    confirmation dialogs for dangerous actions, and ESC to
+                    save &amp; exit (Ctrl+D discards and reverts the live
+                    theme). Theme, accent and transparency changes restyle
+                    the editor <em>live</em>.
+                </p>
+
+                <h3>config.json structure</h3>
                 <table>
                     <tr>
-                        <th>Theme</th>
-                        <th>Accent</th>
-                        <th>Description</th>
+                        <th>Section</th>
+                        <th>Keys</th>
                     </tr>
                     <tr>
-                        <td>Matrix</td>
-                        <td>Amber / Green</td>
-                        <td>Classic hacker terminal aesthetic</td>
+                        <td><code>theme</code></td>
+                        <td>
+                            <code>name</code> (monochrome-red / monochrome),
+                            <code>accent</code> hex,
+                            <code>transparent_background</code> on/off
+                        </td>
                     </tr>
                     <tr>
-                        <td>Blue</td>
-                        <td>#3f8cff</td>
-                        <td>Cyberpunk blue with teal accents</td>
+                        <td><code>attacker</code></td>
+                        <td>
+                            <code>target_ip</code> (default 192.0.0.1),
+                            <code>attack_method</code>, <code>threads</code>,
+                            <code>packet_size</code> (8–8192 B),
+                            <code>connect_timeout</code>
+                        </td>
                     </tr>
                     <tr>
-                        <td>Red</td>
-                        <td>#ff6b35</td>
-                        <td>Fire/warning red with orange accents</td>
+                        <td><code>scanner</code></td>
+                        <td>
+                            <code>scan_mode</code> (host / network),
+                            <code>target</code>, <code>ports</code>,
+                            <code>connect_timeout</code>,
+                            <code>banner_timeout</code>,
+                            <code>concurrency</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>presets</code></td>
+                        <td>
+                            <code>active</code> preset name,
+                            <code>custom</code> map of user-defined presets
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>ui</code></td>
+                        <td>
+                            <code>animation_speed</code> (slow / normal /
+                            fast), <code>ascii_effects</code> on/off
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>advanced</code> <em>(3.7.0)</em></td>
+                        <td>
+                            <code>block_private_targets</code>,
+                            <code>scan_delay_ms</code>,
+                            <code>max_tabs</code>,
+                            <code>flood_rate_display</code>,
+                            <code>auto_start_session</code>,
+                            <code>auto_connect_monitor</code>,
+                            <code>monitor_interval</code>,
+                            <code>banner_grab</code>,
+                            <code>geoip_enabled</code>,
+                            <code>timestamped_logs</code>,
+                            <code>conn_delay_ms</code>,
+                            <code>reuse_payload</code> — all mirrored in the
+                            <a href="#settings">Settings</a> modal
+                            (<code>⚙ Advanced</code>) and in
+                            <code>settings.py</code> (<code>Ctrl+A</code>)
+                        </td>
                     </tr>
                 </table>
+
+                <h3>Advanced Settings, toasts &amp; confirmations</h3>
+                <p>
+                    3.7.0 splits settings into <strong>Basic</strong> and
+                    <strong>Advanced</strong> views. Open Advanced from the
+                    Settings modal (<code>⚙ Advanced → Open…</code>) or with
+                    <code>Ctrl+A</code> in the editor. Every
+                    change pops a small <em>toast</em> confirming the new
+                    value; dangerous actions — Factory Reset, Reset Advanced,
+                    disabling the private-target safety guard — raise a
+                    <em>confirmation dialog</em> first. The Advanced view ends
+                    with an <strong>About</strong> panel (version, codename,
+                    repo + docs links, config path) and the disclaimer.
+                </p>
+
+                <h3>Strength presets</h3>
+
+                <p>
+                    Selectable in the Scanner Setup modal and in
+                    <code>settings.py</code>; the active preset also seeds the
+                    attacker defaults:
+                </p>
+
+                <table>
+                    <tr>
+                        <th>Preset</th>
+                        <th>Scanner Threads</th>
+                        <th>Scanner Timeout</th>
+                        <th>Attacker Threads</th>
+                        <th>Attacker Packet Size</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Low</strong></td>
+                        <td>64</td>
+                        <td>1.5 s</td>
+                        <td>50</td>
+                        <td>64 B</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Medium</strong> (default)</td>
+                        <td>256</td>
+                        <td>0.75 s</td>
+                        <td>200</td>
+                        <td>512 B</td>
+                    </tr>
+                    <tr>
+                        <td><strong>High</strong></td>
+                        <td>1024</td>
+                        <td>0.3 s</td>
+                        <td>1000</td>
+                        <td>1024 B</td>
+                    </tr>
+                </table>
+
+                <p>
+                    Custom presets: set your own values, give a name in
+                    <code>settings.py</code> and hit
+                    <code>✚ Save Custom From Current</code>. Customs are stored
+                    in <code>config.json</code> and can be deleted from the
+                    same screen. Built-ins cannot be overwritten.
+                </p>
+
+                <h3>Transparency</h3>
+                <p>
+                    With <code>theme.transparent_background</code> enabled, all
+                    screens render on a fully transparent background — no
+                    hardcoded blacks — so blur-enabled terminals (Windows
+                    Terminal acrylic, Kitty, Alacritty opacity) show the
+                    desktop natively. The only opaque surface is the bottom
+                    command/hint bar. Set it to <code>false</code> for a solid
+                    near-black background.
+                </p>
 
                 <h2 id="port-scanner">Port Scanner</h2>
 
                 <p>
-                    The Port Scanner is a new mode in v3.5 that scans a target
+                    The Port Scanner scans a target
                     host for open TCP ports, identifies protocols, and
                     fingerprints device types — all without requiring
                     <code>nmap</code> or administrator privileges.
@@ -1630,12 +1783,44 @@ python dosping.py</code></pre>
 
                 <h2 id="shortcuts">Keyboard Shortcuts</h2>
 
+                <p>
+                    Every screen shows the shortcuts available in its context
+                    in a persistent hint bar at the bottom.
+                </p>
+
                 <table>
                     <tr>
                         <th>Key</th>
                         <th>Action</th>
                         <th>Context</th>
                         <th>Notes</th>
+                    </tr>
+                    <tr>
+                        <td><code>↑/↓/←/→</code></td>
+                        <td>Navigate</td>
+                        <td>Home, config screens</td>
+                        <td>Tiles and fields.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Tab</code></td>
+                        <td>Next field</td>
+                        <td>Config screens</td>
+                        <td>Cycles through inputs and buttons.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Enter</code></td>
+                        <td>Select / confirm</td>
+                        <td>Anywhere</td>
+                        <td>Activates tiles, buttons, inputs.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Escape</code></td>
+                        <td>Back</td>
+                        <td>Any submenu/settings</td>
+                        <td>
+                            Returns to the parent screen; in
+                            <code>settings.py</code> it saves &amp; exits.
+                        </td>
                     </tr>
                     <tr>
                         <td><code>Ctrl+P</code></td>
@@ -1650,6 +1835,12 @@ python dosping.py</code></pre>
                         <td>Blocked at 4 tabs.</td>
                     </tr>
                     <tr>
+                        <td><code>Ctrl+Shift+N</code></td>
+                        <td>New scan tab</td>
+                        <td>Session</td>
+                        <td>Opens the scanner setup.</td>
+                    </tr>
+                    <tr>
                         <td><code>Ctrl+W</code></td>
                         <td>Close tab</td>
                         <td>Session</td>
@@ -1662,22 +1853,40 @@ python dosping.py</code></pre>
                         <td>Won't trigger in Input fields.</td>
                     </tr>
                     <tr>
+                        <td><code>r</code></td>
+                        <td>Reset test</td>
+                        <td>Session</td>
+                        <td>Clears logs, restarts the session.</td>
+                    </tr>
+                    <tr>
+                        <td><code>i</code> / <code>t</code></td>
+                        <td>Toggle ICMP / TCP</td>
+                        <td>Session</td>
+                        <td>Connectivity monitors.</td>
+                    </tr>
+                    <tr>
+                        <td><code>e</code></td>
+                        <td>Export log</td>
+                        <td>Session</td>
+                        <td>Timestamped .txt export.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Ctrl+M</code></td>
+                        <td>Cycle view mode</td>
+                        <td>Anywhere</td>
+                        <td>SKID → ADVANCED → IT.</td>
+                    </tr>
+                    <tr>
+                        <td><code>?</code> / <code>F1</code></td>
+                        <td>Cheat sheet</td>
+                        <td>Anywhere</td>
+                        <td>Shortcut reference overlay.</td>
+                    </tr>
+                    <tr>
                         <td><code>q</code></td>
                         <td>Quit</td>
                         <td>Session</td>
                         <td>Saves stats. Prints exit summary.</td>
-                    </tr>
-                    <tr>
-                        <td><code>Escape</code></td>
-                        <td>Cancel</td>
-                        <td>Setup modal</td>
-                        <td>No tab created.</td>
-                    </tr>
-                    <tr>
-                        <td><code>Enter</code></td>
-                        <td>Next / Submit</td>
-                        <td>Setup modal</td>
-                        <td>IP > Ports > Bots > Submit.</td>
                     </tr>
                 </table>
 
@@ -1724,8 +1933,11 @@ CONNECTIVITY LOG:
                 <h2 id="themes">Themes</h2>
 
                 <p>
-                    DOSping ships with "DOSping Matrix": monochrome dark palette
-                    with amber, sage, olive, brick on near-black.
+                    DOSping uses a semantic theme layer (<code>theme.py</code>):
+                    monochrome base — white/light grey text — with red accents
+                    for active elements, borders, and highlights. Screens
+                    render on a <strong>transparent background</strong>; the
+                    only opaque surface is the command bar.
                 </p>
 
                 <h3>Color palette</h3>
@@ -1737,65 +1949,92 @@ CONNECTIVITY LOG:
                     </tr>
                     <tr>
                         <td>Background</td>
-                        <td><code>#0b0b0b</code></td>
-                        <td>Screen bg</td>
-                    </tr>
-                    <tr>
-                        <td>Surface</td>
-                        <td><code>#111110</code></td>
-                        <td>Header, footer, setup box</td>
-                    </tr>
-                    <tr>
-                        <td>Panel</td>
-                        <td><code>#0e0e0c</code></td>
-                        <td>Log backgrounds</td>
-                    </tr>
-                    <tr>
-                        <td>Amber</td>
-                        <td><code>#c8a050</code></td>
-                        <td>Primary accent, KITT glow</td>
-                    </tr>
-                    <tr>
-                        <td>Sage</td>
-                        <td><code>#7a9a6a</code></td>
-                        <td>Secondary accent</td>
-                    </tr>
-                    <tr>
-                        <td>Olive</td>
-                        <td><code>#9a8a40</code></td>
-                        <td>Warnings, timeouts</td>
-                    </tr>
-                    <tr>
-                        <td>Brick</td>
-                        <td><code>#8a5a4a</code></td>
-                        <td>Errors, failures</td>
-                    </tr>
-                    <tr>
-                        <td>Muted</td>
-                        <td><code>#555550</code></td>
-                        <td>Labels, hints</td>
+                        <td><code>transparent</code></td>
+                        <td>Screen bg (acrylic/blur shows through)</td>
                     </tr>
                     <tr>
                         <td>Text</td>
-                        <td><code>#c8c8b8</code></td>
-                        <td>Primary text</td>
+                        <td><code>#f2f2f2</code></td>
+                        <td>Primary text (white)</td>
+                    </tr>
+                    <tr>
+                        <td>Bright</td>
+                        <td><code>#ffffff</code></td>
+                        <td>Active input, emphasis</td>
+                    </tr>
+                    <tr>
+                        <td>Accent</td>
+                        <td><code>#ff3333</code></td>
+                        <td>Titles, borders, selection, KITT glow</td>
+                    </tr>
+                    <tr>
+                        <td>Accent dim / dark</td>
+                        <td><code>#a02020</code> / <code>#5a1414</code></td>
+                        <td>Borders, secondary glow</td>
+                    </tr>
+                    <tr>
+                        <td>Dim</td>
+                        <td><code>#8a8a8a</code></td>
+                        <td>Hints, placeholders</td>
+                    </tr>
+                    <tr>
+                        <td>Muted</td>
+                        <td><code>#555555</code></td>
+                        <td>Labels, disabled states</td>
+                    </tr>
+                    <tr>
+                        <td>Bar</td>
+                        <td><code>#1a1a1a</code></td>
+                        <td>Command/hint bar (the one opaque surface)</td>
+                    </tr>
+                </table>
+
+                <h3>Theme variants</h3>
+                <table>
+                    <tr>
+                        <th>Name</th>
+                        <th>Accent</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>Mono</td>
+                        <td><code>#ff3333</code></td>
+                        <td>Default — monochrome + red</td>
+                    </tr>
+                    <tr>
+                        <td>Mono Bright</td>
+                        <td><code>#ff5544</code></td>
+                        <td>Hotter red accent</td>
+                    </tr>
+                    <tr>
+                        <td>Mono Dim</td>
+                        <td><code>#a02020</code></td>
+                        <td>Subdued blood-red accent</td>
                     </tr>
                 </table>
 
                 <h3>Switching themes</h3>
                 <ol>
-                    <li><code>Ctrl+P</code></li>
-                    <li>Type "theme"</li>
-                    <li>Select "Change theme"</li>
                     <li>
-                        Pick from the list (nord, gruvbox, textual-dark, etc.)
+                        Open <code>⚙ SETTINGS</code> from the Home Screen and
+                        cycle <strong>Theme</strong>, or
+                    </li>
+                    <li>
+                        run <code>python settings.py</code> and pick the accent
+                        there, or
+                    </li>
+                    <li>
+                        edit <code>theme.accent</code> in
+                        <code>config.json</code> with any <code>#rrggbb</code>
+                        value.
                     </li>
                 </ol>
 
                 <p>
-                    Switching themes changes Textual design tokens. Panel
-                    borders, log colors, and stats display keep the DOSping
-                    palette (hardcoded hex, not theme variables).
+                    All widgets reference the semantic
+                    <code>THEME["accent"]</code>-style dict — swapping themes
+                    later is a one-line change in
+                    <code>theme.py</code>, not a rewrite.
                 </p>
 
                 <h2 id="terminal">Terminal Launcher</h2>
@@ -2049,7 +2288,46 @@ CONNECTIVITY LOG:
                     </tr>
                     <tr>
                         <td><code>flooder.py</code></td>
-                        <td>Async TCP flood engine. Decoupled from UI.</td>
+                        <td>
+                            Async TCP flood engine. Config-driven packet size,
+                            decoupled from UI.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>scanner.py</code></td>
+                        <td>
+                            Async port + network scan engines with banner
+                            grabbing and device fingerprinting.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>config.py</code></td>
+                        <td>
+                            config.json load/save with schema repair, numeric
+                            clamping, presets API, thread-safe singleton.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>theme.py</code></td>
+                        <td>
+                            Semantic THEME dict — monochrome + red palette,
+                            transparent background, animation speed scaling.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>settings.py</code></td>
+                        <td>
+                            Standalone settings TUI (<code>python
+                            settings.py</code>): every config option,
+                            presets, validation.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>config.json</code></td>
+                        <td>
+                            Runtime-generated configuration (gitignored).
+                            Auto-repaired when missing or invalid.
+                        </td>
                     </tr>
                     <tr>
                         <td><code>requirements.txt</code></td>
@@ -2058,14 +2336,17 @@ CONNECTIVITY LOG:
                     <tr>
                         <td><code>setup.bat</code></td>
                         <td>
-                            Windows installer. Auto-clones if run standalone.
+                            Windows installer. Auto-clones if run standalone;
+                            <code>--no-run</code>/<code>--reinstall</code>
+                            flags; verifies the install imports.
                         </td>
                     </tr>
                     <tr>
                         <td><code>setup.sh</code></td>
                         <td>
-                            Linux/macOS installer. Auto-clones. Spinner
-                            animation.
+                            Linux/macOS installer. Auto-clones,
+                            <code>--no-run</code>/<code>--reinstall</code>
+                            flags, version checks, spinner animation.
                         </td>
                     </tr>
                     <tr>
@@ -2141,6 +2422,100 @@ CONNECTIVITY LOG:
                         <th>Version</th>
                         <th>Date</th>
                         <th>Changes</th>
+                    </tr>
+                    <tr>
+                        <td><strong>3.7.0 “Code Red”</strong></td>
+                        <td>2026-09-13</td>
+                        <td>
+                            <ul>
+                                <li>
+                                    <strong>Advanced Settings</strong> — new second level inside the settings editor: Attack Engine (connect timeout, per-bot connection delay, payload reuse, log interval), Scanner Engine (banner grab), Logging (flood log line cap, timestamped logs), Interface (confirm quit, confirm dangerous, toasts), Sessions (max tabs, auto-start session), Network (GeoIP lookup + timeout), Safety (block private/loopback targets). Every feature in the app now has a config switch.
+                                </li>
+                                <li>
+                                    <strong>Settings editor in-app</strong> — the full editor is now pushed as a screen inside DOSping (<code>⚙ SETTINGS → Advanced → Open…</code>); no need to quit and run <code>python settings.py</code> (still available standalone).
+                                </li>
+                                <li>
+                                    <strong>Live theming</strong> — theme, accent colour and background transparency apply instantly to the running app and the editor (no restart). Settings screens restyle via CSS variables (<code>$accent</code>, <code>$bg</code>, …); Ctrl+D discards and reverts the live theme.
+                                </li>
+                                <li>
+                                    <strong>Scroll fix</strong> — the settings page would not scroll (inner container collapsed to the viewport); the editor column now sizes to content and scrolls properly.
+                                </li>
+                                <li>
+                                    <strong>Toasts &amp; confirmations</strong> — every setting change pops a confirmation toast; dangerous actions (Factory Reset, Reset Advanced, delete preset, disabling the private-target guard) raise a Yes/No confirmation dialog first. Toasts and guards can themselves be configured.
+                                </li>
+                                <li>
+                                    <strong>About panel</strong> — the Advanced view shows the version (3.7.0 “Code Red”), repo + docs links, framework info and the config path, plus the disclaimer in subtle grey text.
+                                </li>
+                                <li>
+                                    <strong>Engine wiring</strong> — Flooder honours <code>conn_delay</code> and <code>reuse_payload</code>; scanner honours <code>banner_grab</code>; GeoIP panel honours <code>geoip_lookup</code>/<code>geoip_timeout</code>; session tabs respect <code>max_tabs</code>; SessionScreen auto-open respects <code>auto_start_session</code>; attack setup refuses private/loopback targets when <code>block_private_targets</code> is on; flood log capped at <code>flood_log_lines</code>; logs optionally timestamped.
+                                </li>
+                                <li>
+                                    <strong>Fix</strong> — theme choice now applies to the whole app, not just the settings editor: dosping.py rebound the shared THEME dict at import (so rebuilds never reached it) and baked palette values into every stylesheet. Stylesheets now use live CSS variables and the saved theme is applied at startup — pick <em>monochrome</em> and the entire TUI boots grey-accented.
+                                </li>
+                                <li>
+                                    <strong>Fix</strong> — removed the broken character-glitch from the small home-screen title (rendered unreliably across terminals); it is now a clean static <code>DO|||&gt;g 3.7.0</code>. Splash and tile effects are unchanged.
+                                </li>
+                                <li>
+                                    <strong>Repo repair</strong> — removed a stale nested-repo gitlink (<code>.claude/worktrees/dosping-v3</code>) that broke <code>git status</code>/<code>diff</code>; <code>.claude/</code> is now ignored.
+                                </li>
+                                <li>
+                                    <strong>Fix — true monochrome</strong> — accent-derived shades (dim/dark/bright borders, warnings) were hardcoded red in the palette builder, so the <em>monochrome</em> theme still showed red borders in modals and hints. All shades are now derived from the accent colour: monochrome is pure grey, with zero red traces.
+                                </li>
+                                <li>
+                                    <strong>Fix — theme reaches every render path</strong> — Rich markup constants (CLR_*), the splash logo and frozen widget styles (KITT bar, tile titles) now refresh on a live theme switch, not just on restart.
+                                </li>
+                                <li>
+                                    <strong>Fix — settings persist across sessions</strong> — the Default View Mode chosen in the settings modal (or Ctrl+M) is now saved to <code>config.json</code> (<code>ui.default_view_mode</code>) and restored on the next launch; previously only theme/UI toggles persisted.
+                                </li>
+                                <li>
+                                    <strong>Fix — About panel</strong> — the About box collapsed to zero height (its container defaulted to the free-space sizing rule); it now sizes to its content and shows the version, repo/docs links and framework info when expanded.
+                                </li>
+                                <li>
+                                    <strong>Fix — arrow-key navigation</strong> — ↑/↓ now move focus through the settings modal's controls (View Mode, ASCII Effects, Anim Speed, Theme, Advanced).
+                                </li>
+                                <li>
+                                    <strong>Fix — theme no longer reverts after the editor closes</strong> — opening the full editor and pressing ESC used to overwrite the accent colour chosen in the quick settings panel with a stale red default: cycle buttons fell back to their first preset whenever the live config value wasn't in the preset list, and ESC-save wrote that stale value back. Buttons now echo the live config value (custom values are appended to the cycle list) and untouched buttons preserve their config value on save. A wide two-session persistence audit (theme, accent, view mode, ASCII effects, animation speed, attacker/scanner defaults, advanced keys, active preset) now passes.
+                                </li>
+                                <li>
+                                    <strong>Fix — command palette shows every command on open</strong> — Ctrl+P used to list only four built-in system commands: Textual 8.x routes an empty palette query to <code>discover()</code> (which by default yields nothing) rather than <code>search()</code>, so the app's commands were never consulted at open. The provider now implements discovery, and opening the palette lists all 17 DOSping commands plus the system commands (typing still filters, clearing restores the full list).
+                                </li>
+                                <li>
+                                    <strong>Fix — view mode persists from every entry point</strong> — mode changes from the command palette and settings modal previously updated memory only; the app's view-mode is now a persisting property, so every change writes <code>ui.default_view_mode</code> to config.json.
+                                </li>
+                                <li>
+                                    <strong>Performance</strong> — reduced per-second render work without visual changes: the latency graph, target-health, packet-inspector, GeoIP and port-scanner panels skip re-renders when their data hasn't changed; finished tab labels stop animating; the post-flood HTTP health check runs on a worker thread instead of blocking the UI loop; flood/ping log buffers are capped (memory); spinner ticks no longer re-query widgets for finished tabs.
+                                </li>
+                                <li>
+                                    <strong>Splash subtitle simplified</strong> — the greyed-out loading line under the logo is now <code>⚡ Network Stress Tester ⚡</code>; the version string lives in the header bar, docs and installers instead of the splash art.
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>v3.5.1</strong></td>
+                        <td>2026-09-12</td>
+                        <td>
+                            <ul>
+                                <li>
+                                    <strong>Fix</strong> — Scanner setup buttons (Scan Mode, Quick Presets, Strength Preset) rendered blank: button rows collapsed inside max-height boxes and our CSS lost to Textual's flat-button defaults. Every control now shows a readable label.
+                                </li>
+                                <li>
+                                    <strong>Fix</strong> — Command palette unreadable with transparent theme variables; palette and overlays now use explicit dark surfaces. Slim dark scrollbars replace bright system ones.
+                                </li>
+                                <li>
+                                    <strong>Fix</strong> — Title glitch no longer permanently scrambles the logo; rare short bursts now resolve to the correct letters (Rule C).
+                                </li>
+                                <li>
+                                    <strong>Fix</strong> — LIVE STATS rate bar no longer wraps out of the sidebar; RichLog panels no longer show horizontal scrollbars.
+                                </li>
+                                <li>
+                                    <strong>Installers</strong> — setup.sh/setup.bat: Python version checks, pip upgrade, broken-venv auto-repair, post-install import verification, <code>--no-run</code> and <code>--reinstall</code> flags, launch fallbacks.
+                                </li>
+                                <li>
+                                    <strong>Docs</strong> — README and this page cover config.json, settings.py, strength presets, transparency setup, and the full shortcut map.
+                                </li>
+                            </ul>
+                        </td>
                     </tr>
                     <tr>
                         <td><strong>v3.5</strong></td>

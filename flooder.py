@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════
 #  flooder.py  —  Async TCP Flood Engine
 # ═══════════════════════════════════════════════════════════════
-#  Part of DOSping v3.0  —  Network Stress Testing TUI
+#  Part of DOSping 3.7.0  —  Network Stress Testing TUI
 #
 #  This module handles concurrent TCP connection flooding.
 #  Decoupled from the UI so any front-end can drive it.
@@ -32,7 +32,7 @@ class Flooder:
 
     Opens *bots* concurrent TCP connections to *target* spread
     round-robin across the given *ports*.  Each connection sends
-    a randomised 1 KiB payload then tears down cleanly.
+    a randomised payload (default 1 KiB) then tears down cleanly.
 
     Parameters
     ----------
@@ -59,6 +59,11 @@ class Flooder:
         ports: List[int],
         bots: int = 200,
         concurrency: int = 50,
+        packet_size: int = 1024,
+        connect_timeout: float = 3.0,
+        conn_delay: float = 0.0,
+        reuse_payload: bool = True,
+        log_interval: int = 25,
         on_progress: Optional[Callable] = None,
         on_log: Optional[Callable] = None,
         on_detail: Optional[Callable] = None,
@@ -66,7 +71,12 @@ class Flooder:
         self.target = target
         self.ports = ports
         self.bots = bots
-        self.concurrency = concurrency
+        self.concurrency = max(1, concurrency)
+        self.packet_size = max(1, int(packet_size))
+        self.connect_timeout = max(0.5, float(connect_timeout))
+        self.conn_delay = max(0.0, float(conn_delay))
+        self.reuse_payload = bool(reuse_payload)
+        self.log_interval = max(1, int(log_interval))
         self.on_progress = on_progress
         self.on_log = on_log
         self.on_detail = on_detail
@@ -79,6 +89,8 @@ class Flooder:
 
         # Rate tracking: monotonic timestamps of completed attempts
         self._conn_times: list[float] = []
+        # Reusable payload — generated once per run, not per packet.
+        self._payload: bytes = random.randbytes(self.packet_size)
 
     # ── Public API ───────────────────────────────────────────
 
@@ -104,6 +116,8 @@ class Flooder:
                 break
             port = self.ports[i % len(self.ports)]
             tasks.append(self._attack(sem, port, i))
+            if self.conn_delay > 0:
+                await asyncio.sleep(self.conn_delay)  # advanced.conn_delay
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -126,6 +140,9 @@ class Flooder:
         """Rolling connection rate over the last *window* seconds."""
         now = time.monotonic()
         cutoff = now - window
+        # Keep only the timestamps inside the window (Phase 8: the old
+        # branch also *dropped* in-window samples when the list grew
+        # past 5000 entries, skewing the rate during long floods).
         self._conn_times = [t for t in self._conn_times if t >= cutoff]
         if not self._conn_times:
             return 0.0
@@ -152,10 +169,15 @@ class Flooder:
             try:
                 reader, writer = await asyncio.wait_for(
                     asyncio.open_connection(self.target, port),
-                    timeout=3.0,
+                    timeout=self.connect_timeout,
                 )
 
-                payload = random.randbytes(1024)
+                # Payload reuse (advanced.reuse_payload): one payload per
+                # run; tiny payloads always get per-packet randomisation.
+                if not self.reuse_payload or self.packet_size <= 64:
+                    payload = random.randbytes(self.packet_size)
+                else:
+                    payload = self._payload
                 writer.write(payload)
                 await writer.drain()
                 sent = len(payload)
@@ -204,8 +226,8 @@ class Flooder:
             if self.on_progress:
                 self.on_progress(total, self.bots)
 
-            # Log every 25 connections (or at the end)
-            if total % 25 == 0 or total == self.bots:
+            # Log every *log_interval* connections (or at the end)
+            if total % self.log_interval == 0 or total == self.bots:
                 if self.on_log:
                     pct = int((total / self.bots) * 100) if self.bots > 0 else 0
                     bar_w = 20

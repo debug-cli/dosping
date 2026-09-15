@@ -4,3 +4,27 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+config.json
+config.json.tmp
+
+# Freebuff session artifacts
+.freebuff/
+freebuff-chat-*.md
+monochromefix*.md
+
+# Claude Code local artifacts
+.claude/
+monochromefix*.md
+settingpersistence*.md
+
+# Freebuff session transcripts
+v3.7.0_Code_Red_Full_Thread*.md
+*_Full_Thread*.md
+
+.mimocode/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.log
+.env

@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  dosping.py  —  DOSping v3.5 Network Stress Testing TUI
+#  dosping.py  —  DOSping 3.7.0 "Code Red" Network Stress Testing TUI
 # ═══════════════════════════════════════════════════════════════
 #  Cross-platform Terminal UI for network stress testing with
 #  multi-tab sessions, live split-panel monitoring, command
@@ -55,7 +55,7 @@ from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.command import Hit, Hits, Provider
+from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Center, Horizontal, Vertical
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
@@ -77,6 +77,36 @@ from textual.widgets import (
 
 from flooder import Flooder
 from scanner import NetworkScanEngine, PortScannerEngine, ScanResult, parse_port_spec
+
+from config import (
+    BUILTIN_PRESETS,
+    DEFAULT_PRESET,
+    PACKET_MAX,
+    PACKET_MIN,
+    THREADS_MAX,
+    THREADS_MIN,
+    get_config,
+    valid_cidr,
+    valid_hostname,
+    valid_ip,
+    valid_port_spec,
+)
+from theme import (
+    ANIM_SPEED,
+    GLITCH_CHARS as BASE_GLITCH_CHARS,
+    THEME,
+    apply_live,
+    build_theme,
+    css_vars,
+    get_anim_interval,
+    rebuild_from_config,
+    theme_palettes,
+)
+
+# Apply the saved theme BEFORE any color constants below are built, so
+# the whole app (CSS $variables, markup, logo) matches config.json at
+# startup instead of always booting in the default red palette.
+rebuild_from_config()
 
 # ═══════════════════════════════════════════════════════════════
 #  VIEW MODES
@@ -109,94 +139,162 @@ class SessionMode(Enum):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  COLOR PALETTE
+#  THEME LAYER  —  semantic colours from theme.py
 # ═══════════════════════════════════════════════════════════════
+#  NOTE: THEME is the *shared* dict from theme.py (already rebuilt
+#  from config.json right after import above).  It must never be
+#  rebound here — rebuild_from_config()/apply_live() mutate it in
+#  place, and every CLR_* snapshot below plus the $variables read
+#  from it.
 
-CLR_BG = "#0b0b0b"
-CLR_SURFACE = "#111110"
-CLR_PANEL = "#0e0e0c"
+CLR_BG = THEME["bg"]
+CLR_SURFACE = THEME["surface"]
+CLR_PANEL = THEME["panel"]
 
-CLR_AMBER = "#c8a050"
-CLR_SAGE = "#7a9a6a"
-CLR_SAGE_DIM = "#6a8a5a"
-CLR_OLIVE = "#9a8a40"
-CLR_BRICK = "#8a5a4a"
+CLR_AMBER = THEME["accent"]
+CLR_SAGE = THEME["text"]
+CLR_SAGE_DIM = THEME["dim"]
+CLR_OLIVE = THEME["warn"]
+CLR_BRICK = THEME["error"]
 
-CLR_BORDER_A = "#3a3a2a"
-CLR_BORDER_B = "#2a3a2a"
-CLR_HEADER_A = "#1e1e16"
-CLR_HEADER_B = "#141e14"
-CLR_MUTED = "#555550"
-CLR_LOGO_EDGE = "#2a2a1a"
-CLR_TEXT = "#c8c8b8"
-CLR_KHAKI = "#7a7a5a"
+CLR_BORDER_A = THEME["border_dim"]
+CLR_BORDER_B = THEME["border_faint"]
+CLR_HEADER_A = THEME["bar_bg"]
+CLR_HEADER_B = THEME["bar_bg"]
+CLR_MUTED = THEME["muted"]
+CLR_BAR = THEME["bar_bg"]
+CLR_LOGO_EDGE = THEME["border_faint"]
+CLR_TEXT = THEME["text"]
+CLR_KHAKI = THEME["dim"]
+
+
+def refresh_palette() -> None:
+    """Re-snap the CLR_* markup constants to the (rebuilt) THEME dict.
+
+    Called by ``apply_theme_everywhere`` after a live theme change so
+    Rich markup strings built from CLR_* (hints, tables, modal titles)
+    pick up the new palette immediately — not just at the next launch.
+    """
+    g = globals()
+    g["CLR_BG"] = THEME["bg"]
+    g["CLR_SURFACE"] = THEME["surface"]
+    g["CLR_PANEL"] = THEME["panel"]
+    g["CLR_AMBER"] = THEME["accent"]
+    g["CLR_SAGE"] = THEME["text"]
+    g["CLR_SAGE_DIM"] = THEME["dim"]
+    g["CLR_OLIVE"] = THEME["warn"]
+    g["CLR_BRICK"] = THEME["error"]
+    g["CLR_BORDER_A"] = THEME["border_dim"]
+    g["CLR_BORDER_B"] = THEME["border_faint"]
+    g["CLR_HEADER_A"] = THEME["bar_bg"]
+    g["CLR_HEADER_B"] = THEME["bar_bg"]
+    g["CLR_MUTED"] = THEME["muted"]
+    g["CLR_BAR"] = THEME["bar_bg"]
+    g["CLR_LOGO_EDGE"] = THEME["border_faint"]
+    g["CLR_TEXT"] = THEME["text"]
+    g["CLR_KHAKI"] = THEME["dim"]
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-MAX_TABS = 4
+MAX_TABS = 4  # overridden at runtime by advanced.max_tabs (see _max_tabs())
+
+
+def _max_tabs() -> int:
+    """Configured concurrent-session limit (advanced settings)."""
+    try:
+        return get_config().get("advanced.max_tabs", 4)
+    except Exception:
+        return 4
 
 
 # ═══════════════════════════════════════════════════════════════
 #  THEME
 # ═══════════════════════════════════════════════════════════════
 
-THEME_DOSPING_MATRIX = Theme(
-    name="dosping-matrix",
-    dark=True,
-    primary=CLR_AMBER,
-    secondary=CLR_SAGE,
-    background=CLR_BG,
-    surface=CLR_SURFACE,
-    panel=CLR_PANEL,
-    accent=CLR_AMBER,
-    success=CLR_SAGE_DIM,
-    warning=CLR_OLIVE,
-    error=CLR_BRICK,
-)
+#  Registered Textual theme variants (v3.6: transparent surfaces).
 
-THEME_DOSPING_BLUE = Theme(
-    name="dosping-blue",
-    dark=True,
-    primary="#3f8cff",
-    secondary="#20b2aa",
-    background=CLR_BG,
-    surface="#10131a",
-    panel="#0d1117",
-    accent="#3f8cff",
-    success="#3ddc84",
-    warning="#ffcc33",
-    error="#ff5c5c",
-)
+def _make_textual_theme(name: str, accent: str) -> Theme:
+    # NOTE: theme *variables* ($background/$surface/$panel) must stay SOLID —
+    # Textual's built-in widgets (buttons, command palette, modals, tooltips)
+    # derive their colors from them, and a transparent variable makes those
+    # colors degenerate to invisible.  Screen transparency is handled by our
+    # own CSS (THEME["bg"] = "transparent"), not by these variables.
+    return Theme(
+        name=name,
+        dark=True,
+        primary=accent,
+        secondary=THEME["text"],
+        foreground=THEME["text"],
+        background="#0a0a0a",
+        surface="#141414",
+        panel="#101010",
+        boost="#1a1a1a",
+        accent=accent,
+        success=THEME["text"],
+        warning=THEME["warn"],
+        error=THEME["error"],
+    )
 
-THEME_DOSPING_RED = Theme(
-    name="dosping-red",
-    dark=True,
-    primary="#ff6b35",
-    secondary="#c8a050",
-    background=CLR_BG,
-    surface="#16100e",
-    panel="#100c0b",
-    accent="#ff6b35",
-    success="#7a9a6a",
-    warning="#c8a050",
-    error="#ff6b35",
-)
+
+# v3.7: registered themes are built live from config by theme.apply_live().
+# These legacy constants remain for backward compatibility only.
+THEME_DOSPING_MATRIX = _make_textual_theme("dosping-mono", THEME["accent"])
+THEME_DOSPING_BLUE = _make_textual_theme("dosping-mono-bright", THEME["accent_bright"])
+THEME_DOSPING_RED = _make_textual_theme("dosping-mono-dim", THEME["accent_dim"])
+
+
+def apply_theme_everywhere(app) -> None:
+    """Push the current THEME into every rendering path of the app.
+
+    1. CSS $variables + built-in widgets (theme.apply_live)
+    2. CLR_* markup snapshots (refresh_palette)
+    3. Pre-rendered markup constants (LOGO)
+    4. Frozen-at-mount styles on live widgets (KITT bar, tile titles)
+    """
+    apply_live(app)
+    refresh_palette()
+    global LOGO
+    LOGO = _build_logo()
+    for scanner in app.query(KITTScanner):
+        try:
+            scanner._render_bar()
+        except Exception:
+            pass
+    for tile in app.query(HomeTile):
+        try:
+            tile._title_color = (
+                THEME["title"] if tile._title != "ATTACKER" else THEME["error"]
+            )
+            bar = tile.query_one(".tile-title-bar", Static)
+            bar.update(f"[bold {tile._title_color}]{tile._title}[/]")
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════
 #  ASCII ART LOGO
 # ═══════════════════════════════════════════════════════════════
 
-LOGO = (
-    f"[{CLR_BORDER_A}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸[/]\n"
-    f"[{CLR_LOGO_EDGE}]░▒▓[/]  [bold {CLR_TEXT}]____    ___   ____        _                       [/] [{CLR_LOGO_EDGE}]▓▒░[/]\n"
-    f"[{CLR_LOGO_EDGE}]░▒▓[/]  [bold {CLR_TEXT}]|  _ \\  / _ \\ / ___|_ __  (_) _ __    __ _  [/] [{CLR_KHAKI}]≫≫≫[/] [{CLR_LOGO_EDGE}]▓▒░[/]\n"
-    f"[{CLR_LOGO_EDGE}]░▒▓[/]  [bold {CLR_TEXT}]| | | || | | |\\___ \\ '_ \\ | || '_ \\  / _` |  [/][{CLR_KHAKI}]≫≫[/] [{CLR_LOGO_EDGE}]▓▒░[/]\n"
-    f"[{CLR_LOGO_EDGE}]░▒▓[/]  [bold {CLR_TEXT}]| |_| || |_| | ___) | |_) || || | | || (_| |  [/] [{CLR_KHAKI}]≫[/] [{CLR_LOGO_EDGE}]▓▒░[/]\n"
-    f"[{CLR_LOGO_EDGE}]░▒▓[/]  [bold {CLR_TEXT}]|____/  \\___/ |____/| .__/ |_||_| |_| \\__, |     [/] [{CLR_LOGO_EDGE}]▓▒░[/]\n"
-    f"[{CLR_LOGO_EDGE}]░▒▓[/]  [bold {CLR_TEXT}]                    |_|              |___/      [/] [{CLR_LOGO_EDGE}]▓▒░[/]\n"
-    f"[{CLR_BORDER_A}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸[/]\n"
-    f"[{CLR_MUTED}]              ⚡ Network Stress Tester v3.5 ⚡[/]"
-)
+def _build_logo() -> str:
+    """Render the big splash logo from the current THEME.
+
+    A function (not a module constant) so a live theme switch can
+    re-render it in the new palette.
+    """
+    h = THEME['border_faint']
+    return (
+    f"[{h}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸[/]\n"
+    f"[{h}]░▒▓[/]  [bold {THEME['text']}]____    ___   ____        _                       [/] [{h}]▓▒░[/]\n"
+    f"[{h}]░▒▓[/]  [bold {THEME['text']}]|  _ \\  / _ \\ / ___|_ __  (_) _ __    __ _  [/] [{THEME['accent']}]≫≫≫[/] [{h}]▓▒░[/]\n"
+    f"[{h}]░▒▓[/]  [bold {THEME['text']}]| | | || | | |\\___ \\ '_ \\ | || '_ \\  / _` |  [/][{THEME['accent_dim']}]≫≫[/] [{h}]▓▒░[/]\n"
+    f"[{h}]░▒▓[/]  [bold {THEME['text']}]| |_| || |_| | ___) | |_) || || | | || (_| |  [/] [{THEME['accent_dim']}]≫[/] [{h}]▓▒░[/]\n"
+    f"[{h}]░▒▓[/]  [bold {THEME['text']}]|____/  \\___/ |____/| .__/ |_||_| |_| \\__, |     [/] [{h}]▓▒░[/]\n"
+    f"[{h}]░▒▓[/]  [bold {THEME['text']}]                    |_|              |___/      [/] [{h}]▓▒░[/]\n"
+    f"[{h}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸[/]\n"
+    f"[{THEME['muted']}]              ⚡ Network Stress Tester ⚡[/]"
+    )
+
+
+LOGO = _build_logo()
 
 LOGO_PLAIN_LINES = [
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸",
@@ -207,10 +305,10 @@ LOGO_PLAIN_LINES = [
     "░▒▓ |____/  \\___/ |____/| .__/ |_||_| |_| \\__, |       ▓▒░",
     "░▒▓                     |_|              |___/        ▓▒░",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━▸",
-    "              ⚡ Network Stress Tester v3.5 ⚡",
+    "              ⚡ Network Stress Tester ⚡",
 ]
 
-GLITCH_CHARS = "!@#$%^&*01█▓▒░╬╠╣╦╩╗╔╝╚│─┐┘┌└├┤┬┴┼~><{}[]"
+GLITCH_CHARS = BASE_GLITCH_CHARS
 
 # ═══════════════════════════════════════════════════════════════
 #  HOME SCREEN ASCII ART
@@ -334,8 +432,11 @@ class KITTScanner(Static):
         self._running = True
 
     def on_mount(self) -> None:
-        if getattr(self.app, "kitt_animation_enabled", True):
-            self._timer = self.set_interval(1 / 30, self._tick)
+        if getattr(self.app, "ascii_effects_enabled", True):
+            self._timer = self.set_interval(
+                get_anim_interval(1 / 30, getattr(self.app, "anim_speed", "normal")),
+                self._tick,
+            )
 
     def on_unmount(self) -> None:
         self.halt()
@@ -355,19 +456,19 @@ class KITTScanner(Static):
         for i in range(self.bar_width):
             dist = abs(i - self.light_pos)
             if dist == 0:
-                bar.append("━", style="bold #e8c060")
+                bar.append("━", style=f"bold {THEME['text_bright']}")
             elif dist == 1:
-                bar.append("━", style="#c8a050")
+                bar.append("━", style=THEME["accent"])
             elif dist == 2:
-                bar.append("━", style="#a88040")
+                bar.append("━", style=THEME["accent_dim"])
             elif dist == 3:
-                bar.append("─", style="#7a5a20")
+                bar.append("─", style=THEME["accent_dark"])
             elif dist == 4:
-                bar.append("─", style="#4a3810")
+                bar.append("─", style=THEME["border_dim"])
             elif dist == 5:
-                bar.append("─", style="#2a2010")
+                bar.append("─", style=THEME["border_faint"])
             else:
-                bar.append("─", style="#181408")
+                bar.append("─", style=THEME["faint"])
         self.update(bar)
 
     def halt(self) -> None:
@@ -382,7 +483,10 @@ class KITTScanner(Static):
         self.light_pos = 0
         self.light_dir = 1
         if self._timer is None:
-            self._timer = self.set_interval(1 / 30, self._tick)
+            self._timer = self.set_interval(
+                get_anim_interval(1 / 30, getattr(self.app, "anim_speed", "normal")),
+                self._tick,
+            )
 
     def sync_enabled(self, enabled: bool) -> None:
         if enabled:
@@ -395,10 +499,10 @@ class KITTScanner(Static):
         done = Text()
         half = self.bar_width // 2 - 5
         for _ in range(half):
-            done.append("━", style=CLR_SAGE_DIM)
-        done.append(" COMPLETE ", style=f"bold {CLR_TEXT} on #1a1a1a")
+            done.append("━", style=THEME["dim"])
+        done.append(" COMPLETE ", style=f"bold {THEME['text_bright']} on {THEME['bar_bg']}")
         for _ in range(half):
-            done.append("━", style=CLR_SAGE_DIM)
+            done.append("━", style=THEME["dim"])
         self.update(done)
 
 
@@ -414,9 +518,9 @@ class StatsPanel(Static):
     StatsPanel {{
         width: 26;
         padding: 1;
-        border-left: solid {CLR_BORDER_A};
-        background: {CLR_PANEL};
-        color: {CLR_TEXT};
+        border-left: solid $accent-dark;
+        background: $panel;
+        color: $text;
     }}
     """
 
@@ -451,7 +555,10 @@ class StatsPanel(Static):
         else:
             rc = CLR_BRICK
 
-        bar_w = 10
+        # Panel is 26 cols (24 content) — a 10-char bar + label wraps
+        # onto its own row.  8 chars keeps `Rate  ██░░░░░░ 100.0%`
+        # on one line.
+        bar_w = 8
         filled = int(bar_w * rate / 100)
         bar = "█" * filled + "░" * (bar_w - filled)
 
@@ -468,7 +575,7 @@ class StatsPanel(Static):
             stats_text = (
                 f" [{CLR_MUTED}]Conn/s [/] [{CLR_TEXT}]{cps:>7.1f}[/]\n"
                 f" [{CLR_MUTED}]Peak   [/] [{CLR_TEXT}]{peak_cps:>7.1f}[/]\n"
-                f" [{CLR_MUTED}]Rate   [/] [{rc}]{bar} {rate:>5.1f}%[/]\n"
+                f" [{CLR_MUTED}]Rate   [/] [{rc}]{bar}[/] [{rc}]{rate:>5.1f}%[/]\n"
                 f" [{CLR_MUTED}]Hits   [/] [{CLR_SAGE_DIM}]{flooder.successful:>7}[/]\n"
                 f" [{CLR_MUTED}]Fails  [/] [{CLR_BRICK}]{flooder.failed:>7}[/]\n"
                 f" [{CLR_MUTED}]Sent   [/] [{CLR_TEXT}]{sent:>7}[/]\n"
@@ -500,7 +607,7 @@ class SplashScreen(Screen):
     DEFAULT_CSS = f"""
     SplashScreen {{
         align: center middle;
-        background: {CLR_BG};
+        background: $bg;
     }}
 
     #splash-container {{
@@ -525,7 +632,7 @@ class SplashScreen(Screen):
     #splash-hint {{
         margin-top: 1;
         text-align: center;
-        color: {CLR_MUTED};
+        color: $muted;
     }}
     """
 
@@ -544,7 +651,10 @@ class SplashScreen(Screen):
                 yield Static("", id="splash-hint", markup=True)
 
     def on_mount(self) -> None:
-        self._anim_timer = self.set_interval(1 / 25, self._tick)
+        self._anim_timer = self.set_interval(
+            get_anim_interval(1 / 25, getattr(self.app, "anim_speed", "normal")),
+            self._tick,
+        )
 
     def _tick(self) -> None:
         if self.revealed:
@@ -558,19 +668,19 @@ class SplashScreen(Screen):
             padded = line.ljust(max_width)
             for ci, ch in enumerate(padded):
                 if ci < self.reveal_col:
-                    result.append(ch, style=CLR_TEXT)
+                    result.append(ch, style=THEME["text"])
                 elif ci < self.reveal_col + 3 and ch != " ":
                     if random.random() < 0.40:
-                        result.append(ch, style="#88ff44")
+                        result.append(ch, style=THEME["text_bright"])
                     else:
-                        result.append(random.choice(GLITCH_CHARS), style="#44cc22")
+                        result.append(random.choice(GLITCH_CHARS), style=THEME["accent"])
                 elif ch in (" ", "\t"):
                     result.append(ch)
                 else:
                     if random.random() < 0.18:
-                        result.append(random.choice(GLITCH_CHARS), style="#22bb22")
+                        result.append(random.choice(GLITCH_CHARS), style=THEME["accent_dim"])
                     else:
-                        result.append(random.choice(GLITCH_CHARS), style="#0d4a0d")
+                        result.append(random.choice(GLITCH_CHARS), style=THEME["accent_dark"])
             if li < len(LOGO_PLAIN_LINES) - 1:
                 result.append("\n")
 
@@ -599,50 +709,36 @@ class SplashScreen(Screen):
 
 
 class HomeHeader(Static):
-    """Centered DOSping title with a live unstable right edge."""
+    """Centered DOSping title.
+
+    Static as of 3.7.0: the character-randomisation glitch on this
+    small header rendered unreliably across terminals, so it was
+    removed.  (The splash screen and home tiles keep their effects.)
+    """
 
     DEFAULT_CSS = f"""
     HomeHeader {{
         width: 64;
         height: 3;
         content-align: center middle;
-        color: {CLR_TEXT};
+        color: $text;
         text-style: bold;
     }}
     """
 
     def __init__(self, **kwargs) -> None:
         super().__init__("", **kwargs)
-        self._timer = None
 
     def on_mount(self) -> None:
-        if getattr(self.app, "matrix_animation_enabled", True):
-            self._timer = self.set_interval(1 / 18, self._tick)
+        self._render_title()
 
-    def on_unmount(self) -> None:
-        if self._timer:
-            self._timer.stop()
+    def _render_title(self) -> None:
+        # THEME is read at render time, so live theme switches apply.
+        self.update(f"[bold {THEME['accent']}]DO|||>g  3.7.0[/]")
 
     def sync_enabled(self, enabled: bool) -> None:
-        if enabled and self._timer is None:
-            self._timer = self.set_interval(1 / 18, self._tick)
-        elif not enabled and self._timer:
-            self._timer.stop()
-            self._timer = None
-            # Reset to solid, mixed-case branding
-            self.update(f"[bold {CLR_AMBER}]DOSping  v3.5[/]")
-
-    def _tick(self) -> None:
-        word = "DOSping"  # this part glitches
-        version = "  v3.5"  # this part stays solid
-        if not getattr(self.app, "matrix_animation_enabled", True):
-            self.update(f"[bold {CLR_AMBER}]{word}{version}[/]")
-            return
-
-        noisy = "".join(
-            random.choice(GLITCH_CHARS) if random.random() < 0.45 else ch for ch in word
-        )
-        self.update(f"[bold #22bb22]{noisy}[/][bold {CLR_AMBER}]{version}[/]")
+        """Kept for the ascii-effects toggle (glitch removed)."""
+        self._render_title()
 
 
 class HomeTile(Widget, can_focus=True):
@@ -659,19 +755,19 @@ class HomeTile(Widget, can_focus=True):
         width: 34;
         height: 24;
         margin: 0 2;
-        border: heavy {CLR_BORDER_A};
-        background: {CLR_PANEL};
+        border: heavy $accent-dark;
+        background: $panel;
         layout: vertical;
     }}
 
     HomeTile:hover {{
-        border: heavy {CLR_AMBER};
-        background: {CLR_SURFACE};
+        border: heavy $accent;
+        background: $surface;
     }}
 
     HomeTile:focus {{
-        border: heavy {CLR_AMBER};
-        background: {CLR_PANEL};
+        border: heavy $accent;
+        background: $panel;
     }}
 
     .tile-title-bar {{
@@ -679,15 +775,15 @@ class HomeTile(Widget, can_focus=True):
         text-align: center;
         text-style: bold;
         padding: 0 1;
-        background: {CLR_HEADER_A};
-        color: {CLR_TEXT};
-        border-bottom: solid {CLR_BORDER_A};
+        background: $bar-bg;
+        color: $text;
+        border-bottom: solid $accent-dark;
     }}
 
     .tile-art-body {{
         height: 1fr;
         padding: 1 0 0 0;
-        color: {CLR_TEXT};
+        color: $text;
         text-align: center;
     }}
     """
@@ -713,6 +809,7 @@ class HomeTile(Widget, can_focus=True):
         self._title_color = title_color
         self._animate = animate
         self._anim_timer = None
+        self._lines_cache: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -725,6 +822,7 @@ class HomeTile(Widget, can_focus=True):
 
     def _reset_art(self) -> None:
         """Restore the original art string, stopping any glitch frame."""
+        self._lines_cache = []
         try:
             self.query_one(".tile-art-body", Static).update(self._art)
         except Exception:
@@ -739,8 +837,11 @@ class HomeTile(Widget, can_focus=True):
     # Animation starts only when this tile is focused, stops on blur.
     def on_focus(self) -> None:
         if self._animate and self._anim_timer is None:
-            if getattr(self.app, "matrix_animation_enabled", True):
-                self._anim_timer = self.set_interval(1 / 10, self._tick_anim)
+            if getattr(self.app, "ascii_effects_enabled", True):
+                self._anim_timer = self.set_interval(
+                    get_anim_interval(1 / 10, getattr(self.app, "anim_speed", "normal")),
+                    self._tick_anim,
+                )
 
     def on_blur(self) -> None:
         self._stop_anim()
@@ -748,16 +849,59 @@ class HomeTile(Widget, can_focus=True):
     def on_unmount(self) -> None:
         self._stop_anim()
 
+    # ── Glitch engine (Phase 4: Rules A + B) ─────────────────
+    #
+    # The wifi/signal art radiates outward from a static base dot
+    # (Rule A): each ring randomises independently, intensity
+    # growing with distance from the base.  Non-radiating art falls
+    # back to a diagonal bottom-left → top-right dissolve that
+    # follows the icon contour (Rule B).
+
+    # Distance from the art's base point (last non-space column of
+    # the widest row, wifi-style).  Larger = more chaotic.
+    _BASE_ROW_RATIO = 0.62  # vertical position of the radiation base
+
+    # Rule B glyph pool: thin line/point glyphs that keep the icon's
+    # contour readable instead of turning it into a block-noise soup.
+    _TILE_GLITCH = "│─╱╲·:∙+*=<>|-/\\"
+
+    def _glitch_prob_at(self, row_ratio: float, col_ratio: float) -> float:
+        """Rule B: probability of randomisation at a point in the art.
+
+        Diagonal gradient anchored at the bottom-left corner, fading
+        to the top-right.  Kept LOW overall so the icon shape stays
+        readable — the effect should feel like interference, not
+        static noise.
+        """
+        row_dist = 1.0 - row_ratio   # 0 at bottom row → 1 at top
+        col_dist = col_ratio         # 0 at left edge → 1 at right
+        # Diagonal: bottom-left (0,0) → top-right (1,1)
+        d = min(1.0, (row_dist + col_dist) / 1.6)
+        return 0.02 + (1.0 - d) ** 1.5 * 0.16
+
     def _tick_anim(self) -> None:
-        if not getattr(self.app, "matrix_animation_enabled", True):
+        if not getattr(self.app, "ascii_effects_enabled", True):
             self._stop_anim()
             return
-        chars = list(self._art)
-        for i, ch in enumerate(chars):
-            if ch not in (" ", "\n") and random.random() < 0.12:
-                chars[i] = random.choice(GLITCH_CHARS)
+        if not self._lines_cache:
+            self._lines_cache = self._art.split("\n")
+        lines = self._lines_cache
+        rows = len(lines)
+        cols = max((len(l) for l in lines), default=1) or 1
+
+        out = []
+        for ri, line in enumerate(lines):
+            row_ratio = ri / max(1, rows - 1)
+            chars = list(line)
+            for ci, ch in enumerate(chars):
+                if ch in (" ", ""):
+                    continue
+                col_ratio = ci / cols
+                if random.random() < self._glitch_prob_at(row_ratio, col_ratio):
+                    chars[ci] = random.choice(self._TILE_GLITCH)
+            out.append("".join(chars))
         try:
-            self.query_one(".tile-art-body", Static).update("".join(chars))
+            self.query_one(".tile-art-body", Static).update("\n".join(out))
         except Exception:
             pass
 
@@ -779,19 +923,18 @@ class HomeScreen(Screen):
         Binding("a", "open_attack", "Attacker"),
         Binding("p", "open_scan", "Port Scanner"),
     ]
-
     DEFAULT_CSS = f"""
     HomeScreen {{
         layout: vertical;
-        background: {CLR_BG};
+        background: $bg;
     }}
 
     #home-top {{
         height: 5;
         width: 100%;
         align: center middle;
-        border-bottom: solid {CLR_LOGO_EDGE};
-        background: {CLR_SURFACE};
+        border-bottom: solid $border-faint;
+        background: $surface;
     }}
 
     #home-body {{
@@ -810,25 +953,33 @@ class HomeScreen(Screen):
         height: 4;
         width: 100%;
         align: center middle;
-        border-top: solid {CLR_LOGO_EDGE};
-        background: {CLR_SURFACE};
+        border-top: solid $border-faint;
+        background: $surface;
+    }}
+
+    #home-hints {{
+        dock: bottom;
+        height: 1;
+        padding: 0 2;
+        background: $bar-bg;
+        color: $dim;
     }}
 
     #settings-btn {{
         width: 24;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_TEXT};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $text;
     }}
 
     #settings-btn:hover {{
-        border: tall {CLR_AMBER};
-        color: {CLR_AMBER};
+        border: tall $accent;
+        color: $accent;
     }}
 
     #settings-btn:focus {{
-        border: tall {CLR_AMBER};
-        color: {CLR_AMBER};
+        border: tall $accent;
+        color: $accent;
     }}
     """
 
@@ -840,25 +991,46 @@ class HomeScreen(Screen):
                 yield HomeTile(
                     title="PORT SCANNER",
                     art=PORT_SCANNER_ART,
-                    title_color=CLR_AMBER,
+                    title_color=THEME["title"],
                     tile_id="scanner-tile",
                     animate=True,
                 )
                 yield HomeTile(
                     title="ATTACKER",
                     art=ATTACKER_ART,
-                    title_color=CLR_BRICK,
+                    title_color=THEME["error"],
                     tile_id="attacker-tile",
                     animate=True,
                 )
         with Horizontal(id="home-bottom"):
             yield Button(SETTINGS_ART, id="settings-btn", variant="default")
+        yield Static(
+            f"[{THEME['accent']}]↑/↓/←/→[/] navigate  "
+            f"[{THEME['accent']}]Enter[/] select  "
+            f"[{THEME['accent']}]A[/] attacker  [{THEME['accent']}]P[/] scanner  "
+            f"[{THEME['accent']}]S/ESC[/] settings  [{THEME['accent']}]Ctrl+M[/] view  "
+            f"[{THEME['accent']}]?[/] help  [{THEME['accent']}]Q[/] quit",
+            id="home-hints",
+            markup=True,
+        )
 
     def on_mount(self) -> None:
         # Small delay so a lingering splash-screen Enter key cannot fire a tile.
         self.set_timer(0.1, lambda: self.query_one("#scanner-tile", HomeTile).focus())
 
     def on_key(self, event) -> None:
+        if event.key == "tab":
+            # Phase 5: Tab cycles focus between the two tiles and settings.
+            focused = self.focused
+            fid = focused.id if focused else None
+            if fid == "scanner-tile":
+                self.query_one("#attacker-tile", HomeTile).focus()
+            elif fid == "attacker-tile":
+                self.query_one("#settings-btn", Button).focus()
+            elif fid == "settings-btn":
+                self.query_one("#scanner-tile", HomeTile).focus()
+            event.stop()
+            return
         focused = self.focused
         fid = focused.id if focused else None
         if event.key in ("left", "h"):
@@ -921,10 +1093,11 @@ class SetupModal(ModalScreen[dict | None]):
 
     #setup-box {{
         width: 72;
+        height: auto;
         max-height: 90%;
         padding: 1 2;
-        border: heavy {CLR_BORDER_A};
-        background: {CLR_SURFACE};
+        border: heavy $accent-dark;
+        background: $surface;
     }}
 
     #logo-small {{
@@ -935,55 +1108,58 @@ class SetupModal(ModalScreen[dict | None]):
 
     .field-label {{
         margin-top: 1;
-        color: {CLR_TEXT};
+        color: $text;
         text-style: bold;
     }}
 
     .field-hint {{
-        color: {CLR_MUTED};
+        color: $muted;
     }}
 
     Input {{
         margin: 0 0 1 0;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_TEXT};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $text;
     }}
 
     Input:focus {{
-        border: tall {CLR_SAGE};
+        border: tall $text;
     }}
 
     #launch-btn {{
         width: 100%;
         margin-top: 1;
-        background: {CLR_PANEL};
-        border: tall {CLR_BRICK};
-        color: {CLR_AMBER};
+        background: $panel;
+        border: tall $error;
+        color: $accent;
     }}
 
     #launch-btn:hover {{
-        background: {CLR_SURFACE};
-        border: tall {CLR_AMBER};
+        background: $surface;
+        border: tall $accent;
     }}
 
     #cancel-btn {{
         width: 100%;
         margin-top: 0;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_MUTED};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $muted;
     }}
     """
 
     def compose(self) -> ComposeResult:
+        cfg = get_config()
         with Vertical(id="setup-box"):
             yield Static(LOGO, id="logo-small", markup=True)
             yield Rule()
 
             yield Label("[bold]Target IP Address[/]", classes="field-label")
             yield Label("[dim](IPv4 address of the target)[/]", classes="field-hint")
-            yield Input(placeholder="e.g. 178.79.134.182", id="ip-input")
+            # Phase 6: dim placeholder defaults to the configured target IP
+            # and clears as soon as the user starts typing.
+            yield Input(placeholder=cfg.get("attacker.target_ip", "192.0.0.1"), id="ip-input")
 
             yield Label("[bold]Target Port(s)[/]", classes="field-label")
             yield Label(
@@ -997,11 +1173,20 @@ class SetupModal(ModalScreen[dict | None]):
                 "[dim](concurrent connections to flood)[/]",
                 classes="field-hint",
             )
-            yield Input(placeholder="200", id="bots-input", value="200")
+            yield Input(
+                placeholder=str(cfg.get("attacker.threads", 200)),
+                id="bots-input",
+                value=str(cfg.get("attacker.threads", 200)),
+            )
 
             yield Rule()
             yield Button("⚡ LAUNCH ATTACK ⚡", variant="error", id="launch-btn")
             yield Button("Cancel", id="cancel-btn")
+            yield Static(
+                f"[{THEME['dim']}]Tab[/] next field  [{THEME['accent']}]ESC[/] back — unsaved input is discarded",
+                id="setup-hints",
+                markup=True,
+            )
 
     # ── Enter-key navigation ─────────────────────────────────
 
@@ -1038,16 +1223,34 @@ class SetupModal(ModalScreen[dict | None]):
             self.query_one("#ip-input", Input).focus()
             return
 
-        try:
-            ports = [int(p.strip()) for p in ports_str.split(",")]
-            for p in ports:
-                if p < 1 or p > 65535:
-                    raise ValueError
-        except ValueError:
+        # Advanced · Safety: optionally refuse private/loopback targets.
+        if get_config().get("advanced.block_private_targets", False):
+            import ipaddress as _ipa
+
+            try:
+                if (_ipa.ip_address(ip).is_private or _ipa.ip_address(ip).is_loopback) and not get_config().get(
+                    "advanced.confirm_danger", True
+                ):
+                    self.notify(
+                        "Private targets blocked (advanced.block_private_targets)",
+                        severity="error",
+                    )
+                    return
+            except ValueError:
+                pass
+
+        if not valid_port_spec(ports_str):
             self.notify(
                 "Invalid port(s)! Use 1-65535, comma-separated.",
                 severity="error",
             )
+            self.query_one("#port-input", Input).focus()
+            return
+
+        try:
+            ports = [int(p.strip()) for p in ports_str.split(",") if p.strip()]
+        except ValueError:
+            self.notify("Invalid port(s)!", severity="error")
             self.query_one("#port-input", Input).focus()
             return
 
@@ -1059,6 +1262,12 @@ class SetupModal(ModalScreen[dict | None]):
             self.notify("Invalid bot count!", severity="error")
             self.query_one("#bots-input", Input).focus()
             return
+
+        # Persist attacker defaults for next launch (Phase 1).
+        cfg = get_config()
+        cfg.set("attacker.target_ip", ip)
+        cfg.set("attacker.threads", max(1, min(2048, bots)))
+        cfg.save()
 
         self.dismiss({"target": ip, "ports": ports, "bots": bots})
 
@@ -1073,11 +1282,23 @@ class ScannerSetupModal(ModalScreen[dict | None]):
 
     #scan-setup-box {{
         width: 76;
+        height: auto;
         max-height: 92%;
         overflow-y: auto;
         padding: 1 2;
-        border: heavy {CLR_BORDER_A};
-        background: {CLR_SURFACE};
+        border: heavy $accent-dark;
+        background: $surface;
+    }}
+
+    /* Button rows must size to their buttons.  Horizontal defaults to
+       height: 1fr which — inside a max-height box — collapses rows to a
+       single border line, clipping every button label (blank buttons). */
+    #mode-row, #preset-row, #strength-row, #params-row {{
+        height: auto;
+    }}
+
+    .param-col {{
+        height: auto;
     }}
 
     #scan-logo-small {{
@@ -1088,48 +1309,62 @@ class ScannerSetupModal(ModalScreen[dict | None]):
 
     .scan-section-title {{
         margin-top: 1;
-        color: {CLR_TEXT};
+        color: $text;
         text-style: bold;
     }}
 
     .scan-field-hint {{
-        color: {CLR_MUTED};
+        color: $muted;
         margin-bottom: 1;
     }}
 
     Input {{
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_TEXT};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $text;
         margin-bottom: 1;
     }}
 
-    Input:focus {{ border: tall {CLR_SAGE}; }}
+    Input:focus {{ border: tall $text; }}
 
-    .mode-btn {{
+    /* Button class rules must match Textual's own `Button.-style-flat`
+       specificity (type + class), otherwise the flat defaults win and
+       colors/backgrounds silently never apply. */
+    Button.mode-btn {{
         width: 18;
         margin: 0 1 1 0;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_TEXT};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $text;
     }}
 
-    .mode-btn-active {{
-        border: tall {CLR_AMBER};
-        color: {CLR_AMBER};
+    Button.mode-btn:hover, Button.mode-btn:focus {{
+        border: tall $accent;
+        color: $text;
     }}
 
-    .preset-btn {{
+    Button.mode-btn-active {{
+        border: tall $accent;
+        color: $accent;
+        text-style: bold;
+    }}
+
+    Button.preset-btn {{
         width: 11;
         margin: 0 1 1 0;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_TEXT};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $text;
     }}
 
-    .preset-btn:hover {{
-        border: tall {CLR_SAGE};
-        color: {CLR_AMBER};
+    Button.preset-btn:hover {{
+        border: tall $text;
+        color: $accent;
+    }}
+
+    Button.preset-btn:focus {{
+        border: tall $accent;
+        color: $accent;
     }}
 
     #params-row {{
@@ -1142,54 +1377,66 @@ class ScannerSetupModal(ModalScreen[dict | None]):
     }}
 
     .param-col Static {{
-        color: {CLR_MUTED};
+        color: $muted;
         height: auto;
     }}
 
     #scan-launch-btn {{
         width: 100%;
         margin-top: 1;
-        background: {CLR_PANEL};
-        border: tall {CLR_SAGE};
-        color: {CLR_AMBER};
+        background: $panel;
+        border: tall $text;
+        color: $accent;
     }}
 
     #scan-cancel-btn {{
         width: 100%;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_MUTED};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $muted;
     }}
     """
 
     def __init__(self) -> None:
         super().__init__()
-        self._mode = "host"
+        self._mode = get_config().get("scanner.scan_mode", "host")
+        self._mode = self._mode if self._mode in ("host", "network") else "host"
 
     def compose(self) -> ComposeResult:
+        cfg = get_config()
+        active_preset = cfg.get("presets.active", DEFAULT_PRESET)
+        ports_default = cfg.get("scanner.ports", "21,22,80,443,554")
         with Vertical(id="scan-setup-box"):
             yield Static(LOGO, id="scan-logo-small", markup=True)
             yield Rule()
 
             # — Scan mode toggle —
             yield Static(
-                f"[{CLR_TEXT}]Scan Mode[/]", classes="scan-section-title", markup=True
+                f"[bold {THEME['title']}]Scan Mode[/]",
+                classes="scan-section-title",
+                markup=True,
             )
             with Horizontal(id="mode-row"):
                 yield Button(
-                    Text("* Single Host", style=CLR_AMBER),
+                    Text(
+                        ("* " if self._mode == "host" else "  ") + "Single Host",
+                        style=THEME["accent"] if self._mode == "host" else THEME["text"],
+                    ),
                     id="mode-host-btn",
-                    classes="mode-btn mode-btn-active",
+                    classes="mode-btn mode-btn-active" if self._mode == "host" else "mode-btn",
                 )
                 yield Button(
-                    Text("  Network Scan", style=CLR_TEXT),
+                    Text(
+                        ("* " if self._mode == "network" else "  ") + "Network Scan",
+                        style=THEME["accent"] if self._mode == "network" else THEME["text"],
+                    ),
                     id="mode-net-btn",
-                    classes="mode-btn",
+                    classes="mode-btn mode-btn-active" if self._mode == "network" else "mode-btn",
                 )
 
             # — Target —
             yield Static(
-                f"[{CLR_TEXT}]Target[/]",
+                f"[bold {THEME['title']}]Target[/]",
                 id="target-label",
                 classes="scan-section-title",
                 markup=True,
@@ -1200,11 +1447,15 @@ class ScannerSetupModal(ModalScreen[dict | None]):
                 classes="scan-field-hint",
                 markup=True,
             )
-            yield Input(placeholder="192.168.1.1", id="scan-ip-input")
+            yield Input(
+                placeholder="192.168.1.1",
+                id="scan-ip-input",
+                value=cfg.get("scanner.target", ""),
+            )
 
             # — Port presets —
             yield Static(
-                f"[{CLR_TEXT}]Quick Presets[/]",
+                f"[bold {THEME['title']}]Quick Presets[/]",
                 classes="scan-section-title",
                 markup=True,
             )
@@ -1216,14 +1467,16 @@ class ScannerSetupModal(ModalScreen[dict | None]):
             with Horizontal(id="preset-row"):
                 for name in PORT_PRESETS:
                     yield Button(
-                        Text(name, style=CLR_TEXT),
+                        Text(name, style=THEME["text"]),
                         id=f"preset-{name.lower()}",
                         classes="preset-btn",
                     )
 
             # — Ports —
             yield Static(
-                f"[{CLR_TEXT}]Ports[/]", classes="scan-section-title", markup=True
+                f"[bold {THEME['title']}]Ports[/]",
+                classes="scan-section-title",
+                markup=True,
             )
             yield Static(
                 "[dim]Comma-separated list or ranges — e.g. 80,443  ·  1-1024  ·  22,8000-8010[/]",
@@ -1231,46 +1484,80 @@ class ScannerSetupModal(ModalScreen[dict | None]):
                 markup=True,
             )
             yield Input(
-                placeholder="21,22,80,443,554",
+                placeholder=ports_default,
                 id="scan-ports-input",
-                value="21,22,80,443,554",
+                value=ports_default,
             )
+
+            # — Strength presets (Phase 7) —
+            yield Static(
+                f"[bold {THEME['title']}]Strength Preset[/]",
+                classes="scan-section-title",
+                markup=True,
+            )
+            yield Static(
+                f"[dim]Active: {active_preset} — applies threads/timeouts below[/]",
+                id="strength-hint",
+                classes="scan-field-hint",
+                markup=True,
+            )
+            with Horizontal(id="strength-row"):
+                for pname in BUILTIN_PRESETS:
+                    yield Button(
+                        Text(
+                            ("* " if pname == active_preset else "  ") + pname,
+                            style=THEME["accent"] if pname == active_preset else THEME["text"],
+                        ),
+                        id=f"strength-{pname.lower()}",
+                        classes="preset-btn",
+                    )
 
             # — Timeouts + Concurrency (3-column) —
             yield Static(
-                f"[{CLR_TEXT}]Timeouts & Concurrency[/]",
+                f"[bold {THEME['title']}]Timeouts & Concurrency[/]",
                 classes="scan-section-title",
                 markup=True,
             )
             with Horizontal(id="params-row"):
                 with Vertical(classes="param-col"):
                     yield Static(
-                        f"[{CLR_MUTED}]Connect (s)[/]\n[dim]Seconds to wait for TCP handshake (0.1–5.0)[/]",
+                        f"[{THEME['muted']}]Connect (s)[/]\n[dim]Seconds to wait for TCP handshake (0.1–5.0)[/]",
                         markup=True,
                     )
                     yield Input(
-                        placeholder="0.75", id="scan-timeout-input", value="0.75"
+                        placeholder="0.75",
+                        id="scan-timeout-input",
+                        value=str(cfg.get("scanner.connect_timeout", 0.75)),
                     )
                 with Vertical(classes="param-col"):
                     yield Static(
-                        f"[{CLR_MUTED}]Banner (s)[/]\n[dim]Wait for protocol response after connect (0.1–2.0)[/]",
+                        f"[{THEME['muted']}]Banner (s)[/]\n[dim]Wait for protocol response after connect (0.1–2.0)[/]",
                         markup=True,
                     )
                     yield Input(
-                        placeholder="0.45", id="scan-banner-input", value="0.45"
+                        placeholder="0.45",
+                        id="scan-banner-input",
+                        value=str(cfg.get("scanner.banner_timeout", 0.45)),
                     )
                 with Vertical(classes="param-col"):
                     yield Static(
-                        f"[{CLR_MUTED}]Slots[/]\n[dim]Max parallel TCP connections (1–512)[/]",
+                        f"[{THEME['muted']}]Slots[/]\n[dim]Max parallel TCP connections (1–2048)[/]",
                         markup=True,
                     )
                     yield Input(
-                        placeholder="128", id="scan-concurrency-input", value="128"
+                        placeholder="128",
+                        id="scan-concurrency-input",
+                        value=str(cfg.get("scanner.concurrency", 128)),
                     )
 
             yield Rule()
             yield Button("📡 START SCAN 📡", variant="success", id="scan-launch-btn")
             yield Button("Cancel", id="scan-cancel-btn")
+            yield Static(
+                f"[{THEME['dim']}]Tab[/] next field  [{THEME['accent']}]ESC[/] back — presets fill the fields below",
+                id="scan-setup-hints",
+                markup=True,
+            )
 
     # ─ Mode toggle ────────────────────────────────────────────
     def _set_mode(self, mode: str) -> None:
@@ -1284,27 +1571,55 @@ class ScannerSetupModal(ModalScreen[dict | None]):
             if mode == "host":
                 host_btn.add_class("mode-btn-active")
                 net_btn.remove_class("mode-btn-active")
-                host_btn.label = Text("* Single Host", style=CLR_AMBER)
-                net_btn.label = Text("  Network Scan", style=CLR_TEXT)
-                t_label.update(f"[{CLR_TEXT}]Target[/]")
+                host_btn.label = Text("* Single Host", style=THEME["accent"])
+                net_btn.label = Text("  Network Scan", style=THEME["text"])
+                t_label.update(f"[bold {THEME['title']}]Target[/]")
                 t_hint.update(
                     "[dim]IPv4 address or hostname — e.g. 192.168.1.1 or router.local[/]"
                 )
                 ip_input.placeholder = "192.168.1.1"
-                ip_input.value = ""
             else:
                 net_btn.add_class("mode-btn-active")
                 host_btn.remove_class("mode-btn-active")
-                host_btn.label = Text("  Single Host", style=CLR_TEXT)
-                net_btn.label = Text("* Network Scan", style=CLR_AMBER)
-                t_label.update(f"[{CLR_TEXT}]Target Network (CIDR)[/]")
+                host_btn.label = Text("  Single Host", style=THEME["text"])
+                net_btn.label = Text("* Network Scan", style=THEME["accent"])
+                t_label.update(f"[bold {THEME['title']}]Target Network (CIDR)[/]")
                 t_hint.update(
                     "[dim]Subnet in CIDR notation — e.g. 192.168.1.0/24  ·  10.0.0.0/8[/]"
                 )
                 ip_input.placeholder = "192.168.1.0/24"
-                ip_input.value = ""
         except Exception:
             pass
+
+    def _set_strength_preset(self, name: str) -> None:
+        """Apply a strength preset to the timeout/slot inputs (Phase 7)."""
+        preset = BUILTIN_PRESETS.get(name)
+        if preset is None:
+            return
+        try:
+            self.query_one("#scan-timeout-input", Input).value = str(
+                preset["scanner_timeout"]
+            )
+            self.query_one("#scan-banner-input", Input).value = str(
+                preset["banner_timeout"]
+            )
+            self.query_one("#scan-concurrency-input", Input).value = str(
+                preset["concurrency"]
+            )
+            self.query_one("#strength-hint", Static).update(
+                f"[dim]Active: {name} — applies threads/timeouts below[/]"
+            )
+        except Exception:
+            return
+        for pname in BUILTIN_PRESETS:
+            try:
+                btn = self.query_one(f"#strength-{pname.lower()}", Button)
+                if pname == name:
+                    btn.label = Text(f"* {pname}", style=THEME["accent"])
+                else:
+                    btn.label = Text(f"  {pname}", style=THEME["text"])
+            except Exception:
+                pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
@@ -1312,6 +1627,12 @@ class ScannerSetupModal(ModalScreen[dict | None]):
             self._set_mode("host")
         elif bid == "mode-net-btn":
             self._set_mode("network")
+        elif bid and bid.startswith("strength-"):
+            name_key = bid[len("strength-") :]
+            for key in BUILTIN_PRESETS:
+                if key.lower() == name_key:
+                    self._set_strength_preset(key)
+                    break
         elif bid and bid.startswith("preset-"):
             name_key = bid[len("preset-") :]
             # Normalise: the dict keys are title-cased, button IDs are lowercased
@@ -1328,8 +1649,6 @@ class ScannerSetupModal(ModalScreen[dict | None]):
         self.dismiss(None)
 
     def _validate_and_launch(self) -> None:
-        import ipaddress as _ip
-
         target = self.query_one("#scan-ip-input", Input).value.strip()
         ports_text = self.query_one("#scan-ports-input", Input).value.strip()
         timeout_text = self.query_one("#scan-timeout-input", Input).value.strip()
@@ -1344,26 +1663,22 @@ class ScannerSetupModal(ModalScreen[dict | None]):
             return
 
         if self._mode == "network":
-            try:
-                _ip.ip_network(target, strict=False)
-            except ValueError:
+            if not valid_cidr(target):
                 self.notify(
                     "Invalid CIDR notation — use format: 192.168.1.0/24",
                     severity="error",
                 )
                 self.query_one("#scan-ip-input", Input).focus()
                 return
-        else:
-            if (
-                not valid_ip(target)
-                and not target.replace("-", "")
-                .replace(".", "")
-                .replace("_", "")
-                .isalnum()
-            ):
-                self.notify("Invalid IP address or hostname.", severity="error")
-                self.query_one("#scan-ip-input", Input).focus()
-                return
+        elif not (valid_ip(target) or valid_hostname(target)):
+            self.notify("Invalid IP address or hostname.", severity="error")
+            self.query_one("#scan-ip-input", Input).focus()
+            return
+
+        if not valid_port_spec(ports_text):
+            self.notify("Invalid port specification.", severity="error")
+            self.query_one("#scan-ports-input", Input).focus()
+            return
 
         try:
             ports = parse_port_spec(ports_text)
@@ -1388,6 +1703,15 @@ class ScannerSetupModal(ModalScreen[dict | None]):
             self.notify("Invalid timing or concurrency value.", severity="error")
             return
 
+        # Persist scanner defaults for next launch (Phase 1/7).
+        cfg = get_config()
+        cfg.set("scanner.target", target)
+        cfg.set("scanner.scan_mode", self._mode)
+        cfg.set("scanner.connect_timeout", timeout)
+        cfg.set("scanner.banner_timeout", banner_timeout)
+        cfg.set("scanner.concurrency", concurrency)
+        cfg.save()
+
         self.dismiss(
             {
                 "target": target,
@@ -1410,23 +1734,24 @@ class SettingsModal(ModalScreen[None]):
     DEFAULT_CSS = f"""
     SettingsModal {{
         align: center middle;
-        background: {CLR_BG} 85%;
+        background: $bar-bg 85%;
     }}
 
     #settings-box {{
         width: 60;
+        height: auto;
         max-height: 90%;
         padding: 1 2;
-        border: heavy {CLR_BORDER_A};
-        background: {CLR_SURFACE};
-        color: {CLR_TEXT};
+        border: heavy $accent-dark;
+        background: $surface;
+        color: $text;
     }}
 
     #settings-title {{
         width: 100%;
         text-align: center;
         text-style: bold;
-        color: {CLR_AMBER};
+        color: $accent;
         margin-bottom: 1;
     }}
 
@@ -1438,33 +1763,33 @@ class SettingsModal(ModalScreen[None]):
 
     .setting-label {{
         width: 26;
-        color: {CLR_TEXT};
+        color: $text;
         text-style: bold;
         content-align: left middle;
     }}
 
     #settings-hint {{
-        color: {CLR_MUTED};
+        color: $muted;
         text-align: center;
         margin-top: 1;
     }}
 
-    .mini-btn {{
+    Button.mini-btn {{
         width: 20;
         margin: 0 0 0 1;
-        background: {CLR_PANEL};
-        border: tall {CLR_BORDER_A};
-        color: {CLR_AMBER};
+        background: $panel;
+        border: tall $accent-dark;
+        color: $accent;
     }}
 
-    .mini-btn:hover {{
-        border: tall {CLR_AMBER};
-        color: {CLR_TEXT};
+    Button.mini-btn:hover {{
+        border: tall $accent;
+        color: $text;
     }}
 
-    .mini-btn:focus {{
-        border: tall {CLR_AMBER};
-        color: {CLR_TEXT};
+    Button.mini-btn:focus {{
+        border: tall $accent;
+        color: $text;
     }}
     """
 
@@ -1475,9 +1800,9 @@ class SettingsModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         # self.app is available during compose (called at mount time)
         self._mode = getattr(self.app, "view_mode", ViewMode.ADVANCED)
-        matrix_on = getattr(self.app, "matrix_animation_enabled", True)
-        kitt_on = getattr(self.app, "kitt_animation_enabled", True)
-        theme_name = getattr(self.app, "theme_preset", "matrix").title()
+        ascii_on = getattr(self.app, "ascii_effects_enabled", True)
+        speed = getattr(self.app, "anim_speed", "normal")
+        theme_name = getattr(self.app, "theme_preset", "monochrome-red")
         with Vertical(id="settings-box"):
             yield Static("[bold]⚙ SETTINGS[/]", id="settings-title", markup=True)
             yield Rule()
@@ -1490,22 +1815,20 @@ class SettingsModal(ModalScreen[None]):
                 yield Button(self._mode.display_name, id="mode-btn", classes="mini-btn")
             with Horizontal(classes="setting-row"):
                 yield Static(
-                    f"[{CLR_TEXT}]Matrix Animation[/]",
+                    f"[{CLR_TEXT}]ASCII Effects[/]",
                     classes="setting-label",
                     markup=True,
                 )
                 yield Button(
-                    "ON" if matrix_on else "OFF", id="matrix-btn", classes="mini-btn"
+                    "ON" if ascii_on else "OFF", id="ascii-btn", classes="mini-btn"
                 )
             with Horizontal(classes="setting-row"):
                 yield Static(
-                    f"[{CLR_TEXT}]KITT Animation[/]",
+                    f"[{CLR_TEXT}]Anim Speed[/]",
                     classes="setting-label",
                     markup=True,
                 )
-                yield Button(
-                    "ON" if kitt_on else "OFF", id="kitt-btn", classes="mini-btn"
-                )
+                yield Button(speed.title(), id="speed-btn", classes="mini-btn")
             with Horizontal(classes="setting-row"):
                 yield Static(
                     f"[{CLR_TEXT}]Theme[/]",
@@ -1513,12 +1836,67 @@ class SettingsModal(ModalScreen[None]):
                     markup=True,
                 )
                 yield Button(theme_name, id="theme-btn", classes="mini-btn")
+            with Horizontal(classes="setting-row"):
+                yield Static(
+                    f"[{CLR_TEXT}]Advanced[/]",
+                    classes="setting-label",
+                    markup=True,
+                )
+                yield Button("Open…", id="adv-btn", classes="mini-btn")
             yield Rule()
             yield Static(
-                f"[{CLR_MUTED}]changes apply now for this session[/]",
+                f"[{CLR_MUTED}]changes apply now · saved to config.json[/]",
                 id="settings-hint",
                 markup=True,
             )
+            yield Static("", id="settings-keys")
+
+    # ── Keyboard navigation ─────────────────────────────────
+    # Buttons don't consume arrow keys by default, so the modal handles
+    # them here and moves focus through its controls manually.
+
+    _NAV_IDS = [
+        "mode-btn",
+        "ascii-btn",
+        "speed-btn",
+        "theme-btn",
+        "adv-btn",
+    ]
+
+    def _focused_idx(self) -> int:
+        focused = self.focused
+        fid = focused.id if focused else None
+        try:
+            return self._NAV_IDS.index(fid)
+        except ValueError:
+            return 0
+
+    def _focus_idx(self, idx: int) -> None:
+        idx %= len(self._NAV_IDS)
+        try:
+            self.query_one(f"#{self._NAV_IDS[idx]}", Button).focus()
+        except Exception:
+            pass
+
+    def on_key(self, event) -> None:
+        if event.key == "down":
+            self._focus_idx(self._focused_idx() + 1)
+            event.stop()
+            event.prevent_default()
+        elif event.key == "up":
+            self._focus_idx(self._focused_idx() - 1)
+            event.stop()
+            event.prevent_default()
+
+    def on_screen_resume(self) -> None:
+        """Render the key hints from the (current) THEME on every show."""
+        try:
+            self.query_one("#settings-keys", Static).update(
+                f"[{THEME['dim']}]Tab/↑↓[/] control  "
+                f"[{THEME['accent']}]Enter[/] change  [{THEME['accent']}]ESC[/] back"
+            )
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn = event.button
@@ -1526,38 +1904,77 @@ class SettingsModal(ModalScreen[None]):
             self._mode = self._mode.next()
             self.app.view_mode = self._mode
             btn.label = self._mode.display_name
-            self.app.notify(
-                f"View Mode: {self._mode.display_name}", severity="information"
-            )
+            self._toast(f"View Mode: {self._mode.display_name}")
             self._update_panels()
-        elif btn.id == "matrix-btn":
-            self.app.matrix_animation_enabled = not getattr(
-                self.app, "matrix_animation_enabled", True
+        elif btn.id == "ascii-btn":
+            self.app.set_ascii_effects(not getattr(self.app, "ascii_effects_enabled", True))
+            btn.label = "ON" if self.app.ascii_effects_enabled else "OFF"
+            self._toast(
+                f"ASCII effects {'enabled' if self.app.ascii_effects_enabled else 'disabled'}"
             )
-            btn.label = "ON" if self.app.matrix_animation_enabled else "OFF"
-            for header in self.app.query(HomeHeader):
-                header.sync_enabled(self.app.matrix_animation_enabled)
-            self.app.notify("Matrix animation toggled", severity="information")
-        elif btn.id == "kitt-btn":
-            self.app.kitt_animation_enabled = not getattr(
-                self.app, "kitt_animation_enabled", True
-            )
-            btn.label = "ON" if self.app.kitt_animation_enabled else "OFF"
-            for scanner in self.app.query(KITTScanner):
-                scanner.sync_enabled(self.app.kitt_animation_enabled)
-            self.app.notify("KITT animation toggled", severity="information")
+        elif btn.id == "speed-btn":
+            speeds = ["slow", "normal", "fast"]
+            current = getattr(self.app, "anim_speed", "normal")
+            nxt = speeds[(speeds.index(current) + 1) % len(speeds)]
+            self.app.set_anim_speed(nxt)
+            btn.label = nxt.title()
+            self._toast(f"Animation speed: {nxt}")
         elif btn.id == "theme-btn":
             self._cycle_theme()
+        elif btn.id == "adv-btn":
+            # Open the full settings editor pushed in-process.
+            self.run_worker(self._open_full_settings())
+
+    async def _open_full_settings(self) -> None:
+        try:
+            from settings import SettingsScreen
+        except Exception as e:
+            self.app.notify(f"Cannot open settings editor: {e}", severity="error")
+            return
+        result = await self.app.push_screen(SettingsScreen(), wait_for_dismiss=True)
+        if result == "saved":
+            self._toast("Settings saved")
+        else:
+            self._toast("Settings editor closed")
+        # Re-apply the (possibly changed) theme across EVERY render path
+        # and sync this modal.
+        rebuild_from_config()
+        apply_theme_everywhere(self.app)
+        self._sync_from_config()
+        try:
+            self.query_one("#theme-btn", Button).label = str(
+                get_config().get("theme.name", "monochrome-red")
+            )
+        except Exception:
+            pass
+
+    def _toast(self, message: str) -> None:
+        """Show a notification unless the user disabled toasts."""
+        if get_config().get("advanced.toasts", True):
+            self.app.notify(message, severity="information")
+
+    def _sync_from_config(self) -> None:
+        """Reload any config-derived state after the editor saved."""
+        cfg = get_config()
+        self.app.ascii_effects_enabled = bool(cfg.get("ui.ascii_effects", True))
+        self.app.anim_speed = cfg.get("ui.animation_speed", "normal")
 
     def _cycle_theme(self) -> None:
-        themes = ["matrix", "blue", "red"]
-        current = getattr(self.app, "theme_preset", "matrix")
+        themes = ["monochrome-red", "monochrome"]
+        cfg = get_config()
+        current = str(cfg.get("theme.name", "monochrome-red"))
         idx = themes.index(current) if current in themes else 0
         next_theme = themes[(idx + 1) % len(themes)]
-        self.app.theme_preset = next_theme
-        self.app.theme = f"dosping-{next_theme}"
-        self.query_one("#theme-btn", Button).label = next_theme.title()
-        self.app.notify(f"Theme: {next_theme.title()}", severity="information")
+        cfg.set("theme.name", next_theme)
+        cfg.set("theme.accent", theme_palettes()[next_theme][0])
+        cfg.save()
+        # Rebuild the semantic THEME dict and restyle the whole app LIVE
+        # (CSS variables + CLR markup + logo + frozen widget styles).
+        rebuild_from_config(cfg)
+        apply_theme_everywhere(self.app)
+        self.query_one("#theme-btn", Button).label = next_theme
+        self.on_screen_resume()  # re-render the key hints in the new palette
+        self.app.notify(f"Theme: {next_theme}", severity="information")
 
     def _update_panels(self) -> None:
         if isinstance(self.app.screen, SessionScreen):
@@ -1583,16 +2000,22 @@ class CheatSheetModal(ModalScreen[None]):
     DEFAULT_CSS = f"""
     CheatSheetModal {{
         align: center middle;
-        background: {CLR_BG} 80%;
+        background: $bar-bg 80%;
     }}
 
     #cheat-box {{
         width: 54;
         height: auto;
-        border: solid {CLR_LOGO_EDGE};
-        background: {CLR_SURFACE};
+        max-height: 88%;
+        overflow-y: auto;
+        border: solid $border-faint;
+        background: $surface;
         padding: 1 2;
-        color: {CLR_TEXT};
+        color: $text;
+    }}
+
+    #cheat-box Static {{
+        width: 100%;
     }}
 
     .center {{
@@ -1650,9 +2073,9 @@ class LatencyGraph(Static):
     LatencyGraph {{
         height: 4;
         padding: 0 1;
-        border-bottom: solid {CLR_BORDER_B};
-        background: {CLR_PANEL};
-        color: {CLR_SAGE};
+        border-bottom: solid $border-faint;
+        background: $panel;
+        color: $text;
     }}
     """
 
@@ -1665,6 +2088,14 @@ class LatencyGraph(Static):
             self.display = False
             return
         self.display = True
+
+        # Perf: only re-render when the data actually changed.  The stats
+        # timer calls this every second even while ICMP is idle, and a
+        # Static.update() forces a full re-render of the widget.
+        state = (len(latencies), latencies[-1] if latencies else 0.0)
+        if state == getattr(self, "_last_render_state", None):
+            return
+        self._last_render_state = state
 
         if not latencies:
             self.update(f"[{CLR_MUTED}]Waiting for latency data...[/]")
@@ -1709,8 +2140,8 @@ class TargetHealthDashboard(Static):
     TargetHealthDashboard {{
         height: 3;
         padding: 0 1;
-        border-bottom: solid {CLR_BORDER_B};
-        background: {CLR_PANEL};
+        border-bottom: solid $border-faint;
+        background: $panel;
     }}
     """
 
@@ -1721,6 +2152,12 @@ class TargetHealthDashboard(Static):
             self.display = False
             return
         self.display = True
+
+        # Perf: skip the re-render when nothing changed.
+        state = (icmp_fails, tcp_fails)
+        if state == getattr(self, "_last_render_state", None):
+            return
+        self._last_render_state = state
 
         icmp_st = (
             f"[{CLR_BRICK}]{icmp_fails} fails[/]"
@@ -1755,9 +2192,9 @@ class GeoIPPanel(Static):
     GeoIPPanel {{
         height: 2;
         padding: 0 1;
-        border-bottom: solid {CLR_BORDER_B};
-        background: {CLR_PANEL};
-        color: {CLR_TEXT};
+        border-bottom: solid $border-faint;
+        background: $panel;
+        color: $text;
     }}
     """
 
@@ -1772,6 +2209,13 @@ class GeoIPPanel(Static):
             return
         self.display = True
 
+        # Advanced · Network: GeoIP lookups can be disabled entirely.
+        if not get_config().get("advanced.geoip_lookup", True):
+            if getattr(self, "_last_render_state", None) != "disabled":
+                self._last_render_state = "disabled"
+                self.update(f"[{CLR_MUTED}]GeoIP disabled (advanced settings)[/]")
+            return
+
         if not self._fetched:
             self._fetched = True
             self.update(f"[{CLR_MUTED}]Fetching GeoIP data...[/]")
@@ -1782,7 +2226,7 @@ class GeoIPPanel(Static):
             resp = await asyncio.to_thread(
                 requests.get,
                 f"http://ip-api.com/json/{self.target}?fields=status,message,country,city,isp",
-                timeout=3,
+                timeout=float(get_config().get("advanced.geoip_timeout", 3.0)),
             )
             data = resp.json()
             if data.get("status") == "success":
@@ -1806,9 +2250,9 @@ class PortScannerPanel(Static):
     PortScannerPanel {{
         height: 2;
         padding: 0 1;
-        border-bottom: solid {CLR_BORDER_B};
-        background: {CLR_PANEL};
-        color: {CLR_TEXT};
+        border-bottom: solid $border-faint;
+        background: $panel;
+        color: $text;
     }}
     """
 
@@ -1844,10 +2288,13 @@ class PortScannerPanel(Static):
             self.update(f"[{CLR_MUTED}]Scanning common ports...[/]")
             self.run_worker(self._scan_ports())
         else:
+            # Perf: only re-render when the port set changed.
             ports_str = (
                 ", ".join(map(str, self.open_ports)) if self.open_ports else "None"
             )
-            self.update(f"[bold {CLR_SAGE}]Open Ports:[/] [{CLR_AMBER}]{ports_str}[/]")
+            if ports_str != getattr(self, "_last_render_state", None):
+                self._last_render_state = ports_str
+                self.update(f"[bold {CLR_SAGE}]Open Ports:[/] [{CLR_AMBER}]{ports_str}[/]")
 
     async def _scan_ports(self) -> None:
         for port in self.COMMON_PORTS:
@@ -1870,8 +2317,8 @@ class PacketInspectorPanel(Static):
     PacketInspectorPanel {{
         height: 2;
         padding: 0 1;
-        border-bottom: solid {CLR_BORDER_A};
-        background: {CLR_PANEL};
+        border-bottom: solid $accent-dark;
+        background: $panel;
     }}
     """
 
@@ -1882,6 +2329,12 @@ class PacketInspectorPanel(Static):
             self.display = False
             return
         self.display = True
+
+        # Perf: 1 Hz timer — skip re-render when stats unchanged.
+        state = (bytes_sent, successful)
+        if state == getattr(self, "_last_render_state", None):
+            return
+        self._last_render_state = state
 
         avg_pkt = (bytes_sent / successful) if successful > 0 else 0
         self.update(
@@ -1897,9 +2350,11 @@ class PortDisplayer(Static):
     DEFAULT_CSS = f"""
     PortDisplayer {{
         height: 1fr;
-        background: {CLR_BG};
-        color: {CLR_TEXT};
+        background: $bg;
+        color: $text;
         padding: 0 1;
+        overflow-y: auto;
+        overflow-x: hidden;
     }}
     """
 
@@ -2032,9 +2487,9 @@ class ScanStatsPanel(Static):
     ScanStatsPanel {{
         width: 26;
         padding: 1;
-        border-left: solid {CLR_BORDER_A};
-        background: {CLR_PANEL};
-        color: {CLR_TEXT};
+        border-left: solid $accent-dark;
+        background: $panel;
+        color: $text;
     }}
     """
 
@@ -2113,15 +2568,15 @@ class TestPanel(Vertical):
 
     .flood-container {{
         width: 1fr;
-        border: heavy {CLR_BORDER_A};
+        border: heavy $accent-dark;
         margin: 0 1 0 0;
-        background: {CLR_PANEL};
+        background: $panel;
     }}
 
     .ping-container {{
         width: 1fr;
-        border: heavy {CLR_BORDER_B};
-        background: {CLR_PANEL};
+        border: heavy $border-faint;
+        background: $panel;
         margin: 0 1 0 0;
     }}
 
@@ -2129,24 +2584,26 @@ class TestPanel(Vertical):
         text-align: center;
         text-style: bold;
         padding: 0 1;
-        background: {CLR_HEADER_A};
-        color: {CLR_AMBER};
-        border-bottom: solid {CLR_BORDER_A};
+        background: $bar-bg;
+        color: $accent;
+        border-bottom: solid $accent-dark;
     }}
 
     .panel-header-ping {{
         text-align: center;
         text-style: bold;
         padding: 0 1;
-        background: {CLR_HEADER_B};
-        color: {CLR_SAGE};
-        border-bottom: solid {CLR_BORDER_B};
+        background: $bar-bg;
+        color: $text;
+        border-bottom: solid $border-faint;
     }}
 
     .flood-log, .ping-log {{
         height: 1fr;
-        background: {CLR_BG};
-        color: {CLR_TEXT};
+        background: $bg;
+        color: $text;
+        overflow-y: auto;
+        overflow-x: hidden;
     }}
 
     .progress-bar {{
@@ -2164,6 +2621,10 @@ class TestPanel(Vertical):
         self.target = target
         self.ports = ports
         self.bots = bots
+        # Phase 1/7: attacker strength comes from config (preset-applied).
+        _cfg = get_config()
+        self._effective_concurrency = max(1, min(2048, int(_cfg.get("attacker.threads", 200))))
+        self._effective_packet_size = int(_cfg.get("attacker.packet_size", 512))
         self.flooder: Flooder | None = None
         self.ping_process: asyncio.subprocess.Process | None = None
         self.start_time: float = 0.0
@@ -2225,6 +2686,14 @@ class TestPanel(Vertical):
 
     def _log_flood(self, msg: str) -> None:
         self._flood_lines.append(msg)
+        # Perf/memory: cap the export buffer so long floods can't grow it
+        # unbounded (advanced.flood_log_lines, same cap the UI log uses).
+        try:
+            cap = int(get_config().get("advanced.flood_log_lines", 2000))
+        except Exception:
+            cap = 2000
+        if len(self._flood_lines) > cap:
+            del self._flood_lines[: len(self._flood_lines) - cap]
         try:
             self.query_one(".flood-log", RichLog).write(msg)
         except Exception:
@@ -2232,6 +2701,8 @@ class TestPanel(Vertical):
 
     def _log_ping(self, msg: str) -> None:
         self._ping_lines.append(msg)
+        if len(self._ping_lines) > 1000:
+            del self._ping_lines[: len(self._ping_lines) - 1000]
         try:
             self.query_one(".ping-log", RichLog).write(msg)
         except Exception:
@@ -2378,11 +2849,17 @@ class TestPanel(Vertical):
         def on_progress(current: int, total: int) -> None:
             progress.progress = current
 
+        _adv = get_config().get("advanced", {})
         self.flooder = Flooder(
             target=self.target,
             ports=self.ports,
             bots=self.bots,
-            concurrency=50,
+            concurrency=self._effective_concurrency,
+            packet_size=self._effective_packet_size,
+            connect_timeout=float(_adv.get("connect_timeout", 3.0)),
+            conn_delay=float(_adv.get("conn_delay", 0.0)),
+            reuse_payload=bool(_adv.get("reuse_payload", True)),
+            log_interval=int(_adv.get("log_interval", 25)),
             on_progress=on_progress,
             on_log=on_log,
         )
@@ -2396,7 +2873,12 @@ class TestPanel(Vertical):
             f"[{CLR_TEXT}]{', '.join(map(str, self.ports))}[/]"
         )
         self._log_flood(f"  [{CLR_MUTED}]Bots        :[/] [{CLR_TEXT}]{self.bots}[/]")
-        self._log_flood(f"  [{CLR_MUTED}]Concurrency :[/] [{CLR_TEXT}]50[/]")
+        self._log_flood(
+            f"  [{CLR_MUTED}]Concurrency :[/] [{CLR_TEXT}]{self._effective_concurrency}[/]"
+        )
+        self._log_flood(
+            f"  [{CLR_MUTED}]Packet size :[/] [{CLR_TEXT}]{self._effective_packet_size} B[/]"
+        )
         self._log_flood("")
 
         await self.flooder.run()
@@ -2416,11 +2898,13 @@ class TestPanel(Vertical):
         scanner.show_complete()
         self._is_running = False
 
-        # ── HTTP health check ────────────────────────────────
+        # ── HTTP health check (threaded — never blocks the UI loop) ──
         self._log_flood("")
         self._log_flood(f"[{CLR_MUTED}]Running HTTP health check...[/]")
         try:
-            resp = requests.head(f"http://{self.target}", timeout=3)
+            resp = await asyncio.to_thread(
+                requests.head, f"http://{self.target}", timeout=3
+            )
             self._log_flood(f"[{CLR_SAGE_DIM}]  ● HTTP {resp.status_code}[/]")
         except requests.RequestException:
             self._log_flood(f"[{CLR_BRICK}]  ✖ HTTP check failed[/]")
@@ -2612,15 +3096,15 @@ class ScanSessionPanel(Vertical):
 
     .scan-container {{
         width: 1fr;
-        border: heavy {CLR_BORDER_A};
+        border: heavy $accent-dark;
         margin: 0 1 0 0;
-        background: {CLR_PANEL};
+        background: $panel;
     }}
 
     .ping-container-scan {{
         width: 1fr;
-        border: heavy {CLR_BORDER_B};
-        background: {CLR_PANEL};
+        border: heavy $border-faint;
+        background: $panel;
         margin: 0 1 0 0;
     }}
 
@@ -2628,15 +3112,17 @@ class ScanSessionPanel(Vertical):
         text-align: center;
         text-style: bold;
         padding: 0 1;
-        background: {CLR_HEADER_A};
-        color: {CLR_AMBER};
-        border-bottom: solid {CLR_BORDER_A};
+        background: $bar-bg;
+        color: $accent;
+        border-bottom: solid $accent-dark;
     }}
 
     .ping-log-scan {{
         height: 1fr;
-        background: {CLR_BG};
-        color: {CLR_TEXT};
+        background: $bg;
+        color: $text;
+        overflow-y: auto;
+        overflow-x: hidden;
     }}
     """
 
@@ -2726,6 +3212,7 @@ class ScanSessionPanel(Vertical):
         )
         self._log_ping(f"  [{CLR_MUTED}]Scanning...[/]")
 
+        _banner_grab = bool(get_config().get("advanced.banner_grab", True))
         if self.scan_mode == "network":
             engine: NetworkScanEngine | PortScannerEngine = NetworkScanEngine(
                 subnet=self.target,
@@ -2733,6 +3220,7 @@ class ScanSessionPanel(Vertical):
                 timeout=self.timeout,
                 banner_timeout=self.banner_timeout,
                 concurrency=self.concurrency,
+                banner_grab=_banner_grab,
             )
         else:
             engine = PortScannerEngine(
@@ -2741,6 +3229,7 @@ class ScanSessionPanel(Vertical):
                 timeout=self.timeout,
                 banner_timeout=self.banner_timeout,
                 concurrency=self.concurrency,
+                banner_grab=_banner_grab,
             )
         self.results = await engine.scan()
         if self.scan_mode == "network":
@@ -2990,7 +3479,7 @@ class SessionScreen(Screen):
     DEFAULT_CSS = f"""
     SessionScreen {{
         layout: vertical;
-        background: {CLR_BG};
+        background: $bg;
     }}
 
     #session-tabs {{
@@ -3000,9 +3489,9 @@ class SessionScreen(Screen):
     .session-status {{
         height: 1;
         padding: 0 1;
-        background: {CLR_SURFACE};
-        color: {CLR_MUTED};
-        border-top: solid {CLR_LOGO_EDGE};
+        background: $surface;
+        color: $muted;
+        border-top: solid $border-faint;
     }}
 
     .empty-state {{
@@ -3010,7 +3499,7 @@ class SessionScreen(Screen):
         height: 100%;
         content-align: center middle;
         text-align: center;
-        color: {CLR_MUTED};
+        color: $muted;
     }}
     """
 
@@ -3031,16 +3520,12 @@ class SessionScreen(Screen):
         mode_name = getattr(self.app, "view_mode", ViewMode.ADVANCED).display_name
         session_name = "SCAN" if self.mode == SessionMode.SCAN else "ATTACK"
         return (
-            f"  [{CLR_MUTED}]Mode:[/] [{CLR_AMBER}]{mode_name}[/]  "
-            f"[{CLR_MUTED}]Session:[/] [{CLR_SAGE_DIM}]{session_name}[/]  "
-            f"[{CLR_MUTED}]Ctrl+M[/] [{CLR_TEXT}]cycle[/]  "
-            f"[{CLR_MUTED}]?[/] [{CLR_TEXT}]help[/]  "
-            f"[{CLR_MUTED}]Ctrl+N[/] [{CLR_TEXT}]new test[/]  "
-            f"[{CLR_MUTED}]Ctrl+Shift+N[/] [{CLR_TEXT}]new scan[/]  "
-            f"[{CLR_MUTED}]Ctrl+W[/] [{CLR_TEXT}]close tab[/]  "
-            f"[{CLR_MUTED}]Ctrl+P[/] [{CLR_TEXT}]commands[/]  "
-            f"[{CLR_MUTED}]s[/] [{CLR_TEXT}]stop[/]  "
-            f"[{CLR_MUTED}]q[/] [{CLR_TEXT}]quit[/]"
+            f"  [{THEME['muted']}]Session:[/] [{THEME['accent']}]{session_name}[/]  "
+            f"[{THEME['accent']}]Ctrl+N[/] test  [{THEME['accent']}]Ctrl+Shift+N[/] scan  "
+            f"[{THEME['accent']}]Ctrl+W[/] close  [{THEME['accent']}]s[/] stop  "
+            f"[{THEME['accent']}]r[/] reset  [{THEME['accent']}]i/t[/] monitors  "
+            f"[{THEME['accent']}]e[/] export  [{THEME['accent']}]Ctrl+M[/] view  "
+            f"[{THEME['accent']}]?[/] help  [{THEME['accent']}]q[/] quit"
         )
 
     def compose(self) -> ComposeResult:
@@ -3062,7 +3547,7 @@ class SessionScreen(Screen):
     def on_mount(self) -> None:
         # Start spinner animation for tab labels
         self._spinner_timer = self.set_interval(1 / 10, self._tick_spinners)
-        if self.auto_start:
+        if self.auto_start and get_config().get("advanced.auto_start_session", True):
             self.set_timer(
                 0.2,
                 self.action_new_test
@@ -3073,8 +3558,8 @@ class SessionScreen(Screen):
     # ── Tab management ───────────────────────────────────────
 
     def action_new_test(self) -> None:
-        if self._tab_count() >= MAX_TABS:
-            self.notify(f"Max {MAX_TABS} concurrent tests", severity="warning")
+        if self._tab_count() >= _max_tabs():
+            self.notify(f"Max {_max_tabs()} concurrent tests", severity="warning")
             return
         self.app.push_screen(SetupModal(), callback=self._on_setup)
 
@@ -3086,8 +3571,8 @@ class SessionScreen(Screen):
             self.app.pop_screen()
 
     def action_new_scan(self) -> None:
-        if self._tab_count() >= MAX_TABS:
-            self.notify(f"Max {MAX_TABS} concurrent tests", severity="warning")
+        if self._tab_count() >= _max_tabs():
+            self.notify(f"Max {_max_tabs()} concurrent tests", severity="warning")
             return
         self.app.push_screen(ScannerSetupModal(), callback=self._on_scan_setup)
 
@@ -3185,6 +3670,11 @@ class SessionScreen(Screen):
             except Exception:
                 continue
 
+            # Perf: finished tabs keep the ✓ label — don't touch the
+            # widget (each label write dirties the tab strip for re-render).
+            if not panel._is_running:
+                continue
+
             port_str = (
                 f":{panel.ports[0]}"
                 if len(panel.ports) == 1
@@ -3209,6 +3699,8 @@ class SessionScreen(Screen):
             except Exception:
                 continue
 
+            # Perf: scan panes animate their label unconditionally — keep
+            # this loop light by rebuilding the label only (no other work).
             port_str = (
                 f":{panel.ports[0]}"
                 if len(panel.ports) == 1
@@ -3260,6 +3752,22 @@ class SessionScreen(Screen):
             panel.export_log()
 
     def action_quit_app(self) -> None:
+        if get_config().get("advanced.confirm_quit", True):
+            self.run_worker(self._confirm_quit())
+        else:
+            self._do_quit()
+
+    async def _confirm_quit(self) -> None:
+        from settings import ConfirmDialog
+
+        proceed = await self.app.push_screen(
+            ConfirmDialog("Quit DOSping? Active sessions will be stopped.", danger=False),
+            wait_for_dismiss=True,
+        )
+        if proceed:
+            self._do_quit()
+
+    def _do_quit(self) -> None:
         # Save stats from the active panel
         panel = self._get_active_panel()
         if isinstance(panel, TestPanel):
@@ -3307,9 +3815,52 @@ class DOSPingCommandProvider(Provider):
     """Custom commands for the Ctrl+P command palette."""
 
     async def search(self, query: str) -> Hits:
+        commands = list(self._iter_commands())
         matcher = self.matcher(query)
 
-        commands = [
+        query = (query or "").strip()
+        if not query:
+            # Empty query: Textual's fuzzy matcher both crashes (ValueError
+            # on zero offsets) and would only surface the built-in system
+            # commands.  Yield every command so Ctrl+P opens with the full
+            # list, most-relevant sections first.
+            for name, help_text, callback in commands:
+                yield Hit(
+                    1.0,
+                    name,
+                    callback,
+                    help=help_text,
+                )
+            return
+
+        for name, help_text, callback in commands:
+            score = matcher.match(name)
+            if score > 0:
+                yield Hit(
+                    score,
+                    matcher.highlight(name),
+                    callback,
+                    help=help_text,
+                )
+
+    async def discover(self) -> Hits:
+        """Discovery hits shown when the palette opens with an empty query.
+
+        Textual (8.x) routes the empty-query search to ``discover()`` — the
+        default implementation yields ``NotImplemented`` (i.e. nothing), so
+        only the built-in system commands appeared at open.  Yield the full
+        command list here instead.
+        """
+        for name, help_text, callback in self._iter_commands():
+            yield DiscoveryHit(
+                name,
+                callback,
+                help=help_text,
+            )
+
+    def _iter_commands(self):
+        """Yield (name, help_text, callback) for every palette command."""
+        yield from (
             (
                 "Switch to Skid Mode",
                 "Minimal view",
@@ -3395,17 +3946,7 @@ class DOSPingCommandProvider(Provider):
                 "Launch a system terminal window",
                 self._open_terminal,
             ),
-        ]
-
-        for name, help_text, callback in commands:
-            score = matcher.match(name)
-            if score > 0:
-                yield Hit(
-                    score,
-                    matcher.highlight(name),
-                    callback,
-                    help=help_text,
-                )
+        )
 
     # ── Callbacks ────────────────────────────────────────────
 
@@ -3540,10 +4081,10 @@ class DOSPingCommandProvider(Provider):
 
 
 class DOSPingApp(App):
-    """DOSping v3.5 — Network Stress Testing TUI."""
+    """DOSping 3.7.0 “Code Red” — Network Stress Testing TUI."""
 
     TITLE = "DOSping"
-    SUB_TITLE = "Network Stress Tester v3.5"
+    SUB_TITLE = "Network Stress Tester 3.7.0 — Code Red"
 
     DARK = True
 
@@ -3551,20 +4092,65 @@ class DOSPingApp(App):
     COMMANDS = App.COMMANDS | {DOSPingCommandProvider}
 
     DEFAULT_CSS = f"""
+    /* Bottom-most screen must stay SOLID: a transparent screen renders
+       itself recursively (RecursionError in the compositor). Our own
+       screens set background: transparent explicitly instead. */
     Screen {{
-        background: {CLR_BG};
+        background: $bar-bg;
     }}
 
     Header {{
-        background: {CLR_SURFACE};
-        color: {CLR_SAGE};
-        border-bottom: solid {CLR_LOGO_EDGE};
+        background: $surface;
+        color: $text;
+        border-bottom: solid $border-faint;
     }}
 
     Footer {{
-        background: {CLR_SURFACE};
-        color: {CLR_MUTED};
-        border-top: solid {CLR_LOGO_EDGE};
+        background: $surface;
+        color: $muted;
+        border-top: solid $border-faint;
+    }}
+
+    /* ── Command palette (Ctrl+P) ────────────────────────────
+       The palette derives every color from theme variables; with a
+       transparent $background it rendered as unreadable black/red
+       bands.  Give it explicit, mostly-opaque surfaces and a
+       visible icon/input/highlight. */
+    CommandPalette {{
+        background: $bar-bg 85% !important;
+    }}
+
+    CommandPalette > Vertical {{
+        background: $bar-bg !important;
+        border-left: heavy $accent-dark;
+        border-right: heavy $accent-dark;
+    }}
+
+    CommandPalette > Vertical > #--input {{
+        border: hkey $accent-dark 60%;
+    }}
+
+    CommandPalette SearchIcon {{
+        color: $accent !important;
+    }}
+
+    CommandPalette CommandInput > Input {{
+        color: $text !important;
+    }}
+
+    CommandPalette > .command-palette--help-text {{
+        color: $muted !important;
+        text-style: dim not bold;
+    }}
+
+    /* ── Scrollbars: slim, dark, red thumb on hover ───────── */
+    ScrollBar {{
+        background: $bar-bg;
+        scrollbar-color: $accent-dark $bar-bg;
+        scrollbar-color-active: $accent;
+        scrollbar-color-hover: $accent;
+        width: 1;
+        height: 1;
     }}
     """
 
@@ -3578,15 +4164,81 @@ class DOSPingApp(App):
     def __init__(self) -> None:
         super().__init__()
         self.session_stats: dict = {}
-        self.view_mode = ViewMode.ADVANCED
+        # Default view mode persists across sessions (ui.* in config).
+        cfg = get_config()
+        try:
+            self._view_mode = ViewMode(
+                str(cfg.get("ui.default_view_mode", "advanced"))
+            )
+        except ValueError:
+            self._view_mode = ViewMode.ADVANCED
         self.animations_enabled = True
-        self.matrix_animation_enabled = True
-        self.kitt_animation_enabled = True
-        self.theme_preset = "matrix"
+        # v3.6: single "ascii effects" switch + speed, loaded from config.json.
+        cfg = get_config()
+        self.ascii_effects_enabled = bool(cfg.get("ui.ascii_effects", True))
+        self.anim_speed = cfg.get("ui.animation_speed", "normal")
+        # Theme name straight from config ("monochrome-red"/"monochrome").
+        _theme = str(cfg.get("theme.name", "monochrome-red"))
+        if _theme not in theme_palettes():
+            _theme = "monochrome-red"
+        self.theme_preset = _theme
+
+    # ── Persisting view mode ─────────────────────────────────
+    # Every writer (Ctrl+M, settings modal, command palette) goes through
+    # this property, so mode changes always reach config.json.
+
+    @property
+    def view_mode(self) -> ViewMode:
+        return self._view_mode
+
+    @view_mode.setter
+    def view_mode(self, mode: ViewMode) -> None:
+        self._view_mode = mode
+        try:
+            cfg = get_config()
+            if cfg.get("ui.default_view_mode") != mode.value:
+                cfg.set("ui.default_view_mode", mode.value)
+                cfg.save()
+        except Exception:
+            pass
+
+    def set_ascii_effects(self, enabled: bool) -> None:
+        """Toggle all glitch/scanner animations and persist the choice."""
+        self.ascii_effects_enabled = enabled
+        cfg = get_config()
+        cfg.set("ui.ascii_effects", enabled)
+        cfg.save()
+        for header in self.query(HomeHeader):
+            header.sync_enabled(enabled)
+        for scanner in self.query(KITTScanner):
+            scanner.sync_enabled(enabled)
+        for tile in self.query(HomeTile):
+            if enabled:
+                tile.on_focus()
+            else:
+                tile.on_blur()
+
+    def set_anim_speed(self, speed: str) -> None:
+        """Set animation speed (slow/normal/fast) and persist it."""
+        if speed not in ANIM_SPEED:
+            speed = "normal"
+        self.anim_speed = speed
+        cfg = get_config()
+        cfg.set("ui.animation_speed", speed)
+        cfg.save()
+        # Restart running timers so the new interval takes effect.
+        # (HomeHeader is static since 3.7.0 — no timer to restart.)
+        for scanner in self.query(KITTScanner):
+            enabled = scanner._timer is not None
+            scanner.sync_enabled(False)
+            if enabled:
+                scanner.sync_enabled(True)
 
     def action_cycle_view_mode(self) -> None:
         self.view_mode = self.view_mode.next()
-        self.notify(f"View Mode: {self.view_mode.display_name}", severity="information")
+        get_config().set("ui.default_view_mode", self.view_mode.value)
+        get_config().save()
+        self.notify(f"View Mode: {self.view_mode.display_name} (saved)", severity="information")
         # Notify active panel if there is one
         if isinstance(self.screen, SessionScreen):
             self.screen.update_status_bar()
@@ -3597,11 +4249,17 @@ class DOSPingApp(App):
     def action_show_cheat_sheet(self) -> None:
         self.push_screen(CheatSheetModal())
 
+    def get_css_variables(self) -> dict[str, str]:
+        """Expose THEME colors as CSS variables ($accent, $bg, ...)
+        so every screen — including the pushed SettingsScreen —
+        restyles live when the theme changes."""
+        return {**super().get_css_variables(), **css_vars()}
+
     def on_mount(self) -> None:
-        self.register_theme(THEME_DOSPING_MATRIX)
-        self.register_theme(THEME_DOSPING_BLUE)
-        self.register_theme(THEME_DOSPING_RED)
-        self.theme = "dosping-matrix"
+        # Live theme from config.json (rebuild + apply, v3.7).
+        rebuild_from_config()
+        apply_live(self)
+        self.theme_preset = str(get_config().get("theme.name", "monochrome-red"))
         self.push_screen(SplashScreen())
 
 
