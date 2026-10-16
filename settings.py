@@ -22,6 +22,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
 from typing import Any, Optional
 
 from textual.app import App, ComposeResult
@@ -31,6 +33,7 @@ from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Input, Static
 
 import eventlog
+import updater
 
 from config import (
     APP_CODENAME,
@@ -49,6 +52,7 @@ from config import (
     SOCK_TIMEOUT_MAX,
     SOCK_TIMEOUT_MIN,
     THREADS_MAX,
+    UPDATE_CHANNELS,
     get_config,
     valid_cidr,
     valid_hostname,
@@ -507,6 +511,23 @@ class SettingsScreen(Screen):
                     yield FieldLabel("Block Private Targets", "refuse loopback/RFC1918")
                     yield self._choice_btn("adv-block-private", [("on", True), ("off", False)], self.cfg.get("advanced.block_private_targets"))
 
+                # ── Updates (v3.8.0) ─────────────────────────
+                yield SectionTitle("── ADVANCED · UPDATES ──────", classes="adv-only")
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("Update Channel", "stable or dev")
+                    yield self._choice_btn(
+                        "adv-update-channel",
+                        [(c, c) for c in UPDATE_CHANNELS],
+                        self.cfg.get("advanced.update.channel", "stable"),
+                    )
+                with Horizontal(classes="row adv-only"):
+                    yield FieldLabel("Auto-Check on Launch", "non-blocking, never auto-applies")
+                    yield self._choice_btn("adv-update-autocheck", [("on", True), ("off", False)], self.cfg.get("advanced.update.auto_check", True))
+                with Horizontal(classes="row adv-only"):
+                    yield Button("Check Now", id="btn-check-updates", classes="action-btn")
+                    yield Button("Update Now", id="btn-apply-update", classes="action-btn")
+                yield Static(self._update_status_text(), id="update-status", classes="adv-only")
+
                 # ── Danger zone ──────────────────────────────
                 yield SectionTitle("── ADVANCED · DANGER ZONE ──", classes="adv-only")
                 with Horizontal(classes="row adv-only"):
@@ -528,6 +549,7 @@ class SettingsScreen(Screen):
                         f"{APP_NAME} v{APP_VERSION} {APP_CODENAME}\n"
                         f"Repo: [$text]{APP_REPO}[/]\n"
                         f"Docs: [$text]{APP_DOCS}[/]\n"
+                        f"Update channel: {self.cfg.get('advanced.update.channel', 'stable')}\n"
                         f"Python: 3.12+  ·  Framework: Textual + asyncio\n"
                         f"Config file: config.json (same folder as dosping.py)\n"
                         f"Log file: {eventlog.get_log_path() or 'logs/ (logging off)'}",
@@ -751,6 +773,70 @@ class SettingsScreen(Screen):
             self.run_worker(self._reset_advanced())
         elif bid == "reset-all":
             self.run_worker(self._reset_all())
+        elif bid == "check-updates":
+            self.run_worker(self._check_updates())
+        elif bid == "apply-update":
+            self.run_worker(self._apply_update())
+
+    # ── Updates (v3.8.0) ─────────────────────────────────────
+
+    def _update_status_text(self) -> str:
+        channel = self.cfg.get("advanced.update.channel", "stable")
+        last = self.cfg.get("advanced.update.last_checked", "") or "never"
+        status = self.cfg.get("advanced.update.last_check_status", "") or "unknown"
+        return f"Channel: {channel} · Last checked: {last} ({status})"
+
+    def _refresh_update_status_line(self) -> None:
+        try:
+            self.query_one("#update-status", Static).update(self._update_status_text())
+        except Exception:
+            pass
+
+    async def _check_updates(self) -> None:
+        channel = self.cfg.get("advanced.update.channel", "stable")
+        result = await asyncio.to_thread(
+            updater.check_for_update, updater.repo_dir(), channel, APP_VERSION,
+        )
+        status = "error" if result.error else (
+            "update_available" if result.update_available else "up_to_date"
+        )
+        self.cfg.set("advanced.update.last_checked", datetime.now().isoformat(timespec="seconds"))
+        self.cfg.set("advanced.update.last_check_status", status)
+        self.cfg.save()
+        eventlog.log_event(
+            "update", "update.check_result", channel=channel,
+            current_version=APP_VERSION, remote_version=result.remote_version or "",
+            available=result.update_available, error=result.error or "",
+            source="UI:settings-editor",
+        )
+        if result.error:
+            self._toast(f"Update check failed: {result.error}", severity="error")
+        elif result.update_available:
+            self._toast(f"Update available: {result.remote_version}", severity="warning")
+        else:
+            self._toast("Already up to date")
+        self._refresh_update_status_line()
+
+    async def _apply_update(self) -> None:
+        channel = self.cfg.get("advanced.update.channel", "stable")
+        if not await self._confirm(
+            "Apply the latest update? You'll need to restart DOSping afterward."
+        ):
+            self._toast("Update cancelled")
+            return
+        result = await asyncio.to_thread(updater.apply_update, updater.repo_dir(), channel)
+        eventlog.log_event(
+            "update", "update.apply_result", channel=channel,
+            success=result.success, new_version=result.new_version or "",
+            error=result.error or "", source="UI:settings-editor",
+        )
+        if result.success:
+            self._toast(
+                f"Updated to {result.new_version or 'latest'} — restart DOSping to use it",
+                severity="warning",
+            )
+        else:
+            self._toast(f"Update failed: {result.error}", severity="error")
 
     def _choice_btn(self, btn_id: str, options: list, current: Any) -> Button:
         """Build a cycling button; store (options, value) for later."""
@@ -935,6 +1021,8 @@ class SettingsScreen(Screen):
             "adv-auto-start": "advanced.auto_start_session",
             "adv-geoip": "advanced.geoip_lookup",
             "adv-block-private": "advanced.block_private_targets",
+            "adv-update-channel": "advanced.update.channel",
+            "adv-update-autocheck": "advanced.update.auto_check",
         }
         for key, dotted in choices_to_config.items():
             entry = self._choices.get(key)
@@ -986,6 +1074,8 @@ class SettingsScreen(Screen):
             "btn-adv-auto-start": "advanced.auto_start_session",
             "btn-adv-geoip": "advanced.geoip_lookup",
             "btn-adv-block-private": "advanced.block_private_targets",
+            "btn-adv-update-channel": "advanced.update.channel",
+            "btn-adv-update-autocheck": "advanced.update.auto_check",
         }
         for btn_id, dotted in toggles.items():
             try:
@@ -993,7 +1083,7 @@ class SettingsScreen(Screen):
                 entry = self._choices.get(btn_id.removeprefix("btn-"))
                 if entry:
                     values = [o[1] if isinstance(o, tuple) else o for o in entry["options"]]
-                    cur = bool(self.cfg.get(dotted))
+                    cur = self.cfg.get(dotted)
                     entry["index"] = values.index(cur) if cur in values else 0
                     opt = entry["options"][entry["index"]]
                     btn.label = opt[0] if isinstance(opt, tuple) else str(opt)
@@ -1164,6 +1254,12 @@ class SettingsScreen(Screen):
             )
             data["advanced.block_private_targets"] = self._live_opt_value(
                 "adv-block-private", "advanced.block_private_targets", False
+            )
+            data["advanced.update.channel"] = self._live_opt_value(
+                "adv-update-channel", "advanced.update.channel", "stable"
+            )
+            data["advanced.update.auto_check"] = self._live_opt_value(
+                "adv-update-autocheck", "advanced.update.auto_check", True
             )
 
         return data, errors

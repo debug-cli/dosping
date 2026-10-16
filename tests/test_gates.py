@@ -97,3 +97,17 @@ def test_log_error_bypasses_level_gate(log_env):
     assert "error.exception" in text
     assert "exc=ValueError" in text
     assert "boom" in text
+
+
+def test_update_events_logged_at_normal(log_env):
+    # Update check/apply results must reach the log at the default level.
+    cfg, read_log = log_env
+    eventlog.log_event(
+        "update", "update.check_result", channel="stable", available=False,
+    )
+    eventlog.log_event(
+        "update", "update.apply_result", channel="dev", success=True,
+    )
+    text = read_log()
+    assert "update.check_result" in text
+    assert "update.apply_result" in text

@@ -56,11 +56,11 @@ _CONFIG_LEVELS = ("minimal", "normal", "verbose", "debug")  # config values
 _LEVEL_CATEGORIES = {
     "minimal": {"app", "error"},
     "normal": {"app", "error", "config", "session", "flood", "scanner",
-               "settings", "ui"},
+               "settings", "ui", "update"},
     "verbose": {"app", "error", "config", "session", "flood", "scanner",
-                "settings", "ui"},
+                "settings", "ui", "update"},
     "debug": {"app", "error", "config", "session", "flood", "scanner",
-              "settings", "ui"},
+              "settings", "ui", "update"},
 }
 
 # Events always included (subject only to the master toggle).
