@@ -26,6 +26,8 @@ A terminal-based network stress testing tool. Floods a target with concurrent TC
 
 📖 **[Full documentation →](https://dosping-docs.vercel.app)**
 
+Update channels (stable / dev) and auto-updating are documented in the [Auto-Updating section](https://dosping-docs.vercel.app/#updates).
+
 ---
 
 ## Quick Start
@@ -157,11 +159,12 @@ You can also save the current values as a **custom preset** (`✚ Save Custom Fr
 - **Live stats** — conn/s, success rate, bytes sent, uptime, updated every second
 - **Dual monitoring** — ICMP ping + TCP port probes running in parallel
 - **Host & network scanning** — single-host port scans or full CIDR subnet sweeps with banner grabbing
-- **Command palette** (`Ctrl+P`) — opens with all 17 commands listed (type to filter): new test/scan, stop, reset, export, monitor toggles, view modes, docs and more
+- **Command palette** (`Ctrl+P`) — opens with all 19 commands listed (type to filter): new test/scan, stop, reset, export, monitor toggles, view modes, docs and more
 - **Glitching ASCII** — splash reveal, KITT scanner bar, and per-tile glitch effects (toggleable, speed-configurable)
 - **Log export** — save session logs to timestamped .txt files
 - **Keyboard-first** — persistent key-hint bar on every screen; ESC always goes back
 - **Exit summary** — formatted report (target, hits/misses, success rate) on quit
+- **Auto-updating** — stable / dev channels, in-app check and apply (`Settings → Advanced → Updates`)
 - **Cross-platform** — Windows, Linux, macOS
 
 ---
@@ -200,6 +203,9 @@ dosping/
 ├── config.py           config.json load/save/repair + presets API
 ├── theme.py            Semantic THEME dict (monochrome + red, transparent bg)
 ├── settings.py         Standalone settings TUI (python settings.py)
+├── updater.py          Update checker and applier (stable = main, dev = dev)
+├── AGENTS.md           Guide for coding agents (read first)
+├── tests/              pytest suite (engines, config, logging, updater)
 ├── config.json         Auto-generated at runtime (gitignored)
 ├── requirements.txt    Dependencies
 ├── setup.bat           Windows installer
