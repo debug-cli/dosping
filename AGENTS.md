@@ -56,6 +56,7 @@ No linter or type checker is configured in this repo. Don't introduce one unaske
 
 - **`main` is the stable channel.** It holds tagged releases (e.g. `v3.7.1`). The `curl | bash` installer tracks it by default.
 - **`dev` is the dev channel.** It gets every commit, untagged, bleeding edge. Day-to-day work lands on `dev`. When a release is cut, `dev` is merged or fast-forwarded into `main` and tagged.
+- **Release requests go to stable.** Any change the user asks to ship with a GitHub release must be put in the stable update channel (`main`), so stable users receive it. Changes without a release request stay on `dev`.
 - **Never rename `main`.** That would break installer URLs and existing clones.
 
 ## 6. Commit style
