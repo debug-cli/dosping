@@ -1,14 +1,14 @@
 @echo off
 setlocal EnableDelayedExpansion
-title DOSping 3.7.1 Setup
+title DOSping 3.8.0 Setup
 
-:: ═══════════════════════════════════════════════════════════
-::  DOSping 3.7.1 "Code Red" — Quick Start Installer (Windows)
+:: ═══════════════════════════════════════════════════════════:: DOSping 3.8.0 "Code Red" — Quick Start Installer (Windows)
 :: ═══════════════════════════════════════════════════════════
 ::  Usage:
 ::    setup.bat              install + launch
 ::    setup.bat --no-run     install only, don't launch
 ::    setup.bat --reinstall  recreate .venv from scratch
+::    setup.bat --channel=dev  clone the dev branch (default: stable)
 :: ═══════════════════════════════════════════════════════════
 
 set "NO_RUN=0"
@@ -17,6 +17,19 @@ if /i "%1"=="--no-run"    set "NO_RUN=1"
 if /i "%1"=="--reinstall" set "REINSTALL=1"
 if /i "%1"=="-h"          goto :usage
 if /i "%1"=="--help"      goto :usage
+
+:: ── Release channel: stable = main, dev = dev branch ──────
+set "ARG1=%~1"
+set "ARG2=%~2"
+set "CHANNEL=stable"
+if /i "!ARG1:~0,10!"=="--channel=" set "CHANNEL=!ARG1:~10!"
+if /i "!ARG2:~0,10!"=="--channel=" set "CHANNEL=!ARG2:~10!"
+if /i not "!CHANNEL!"=="stable" if /i not "!CHANNEL!"=="dev" (
+    echo ERROR: --channel must be 'stable' or 'dev'.
+    exit /b 1
+)
+set "BRANCH=main"
+if /i "!CHANNEL!"=="dev" set "BRANCH=dev"
 
 :: ── ANSI color support ─────────────────────────────────────
 ::    Works on Windows 10 1903+ (PowerShell provides ESC char)
@@ -52,14 +65,14 @@ if not exist requirements.txt (
         pause
         exit /b 1
     )
-    git clone --depth 1 https://github.com/debug-cli/dosping.git dosping
+    git clone --depth 1 --branch !BRANCH! https://github.com/debug-cli/dosping.git dosping
     cd dosping
 )
 
 :: ── Header ─────────────────────────────────────────────────
 cls
 echo.
-echo   !BLD!!AMB!DOSping 3.7.1 "Code Red"!RST!   !DIM!Network Stress Tester!RST!
+echo   !BLD!!AMB!DOSping 3.8.0 "Code Red"!RST!   !DIM!Network Stress Tester!RST!
 echo   !DIM!────────────────────────────────────────────!RST!
 echo   !DIM!For penetration testing / education only.!RST!
 echo   !DIM!Use at your own risk.!RST!
@@ -212,10 +225,11 @@ pause >nul
 exit /b 0
 
 :usage
-echo DOSping 3.7.1 "Code Red" setup
+echo DOSping 3.8.0 "Code Red" setup
 echo.
 echo Usage: setup.bat [option]
 echo   --no-run     install only, don't launch
 echo   --reinstall  recreate .venv from scratch
+echo   --channel=dev  clone the dev branch (default: stable)
 echo   --help       show this help
 exit /b 0

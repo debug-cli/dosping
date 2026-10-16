@@ -101,7 +101,7 @@ def test_migration_recovers_from_garbage_update_section(tmp_path):
 
 
 def test_version_bumped():
-    assert C.APP_VERSION == "3.7.1"
+    assert C.APP_VERSION == "3.8.0"
     assert C.APP_CODENAME == "Code Red"
 
 

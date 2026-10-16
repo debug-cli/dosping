@@ -26,7 +26,7 @@ import threading
 from typing import Any, Optional
 
 APP_NAME = "DOSping"
-APP_VERSION = "3.7.1"
+APP_VERSION = "3.8.0"
 APP_CODENAME = "Code Red"
 APP_REPO = "https://github.com/debug-cli/dosping"
 APP_DOCS = "https://dosping-docs.vercel.app"

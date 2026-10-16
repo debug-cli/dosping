@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════
-#  DOSping 3.7.1 "Code Red" — Quick Start Installer (Linux / macOS)
+#  DOSping 3.8.0 "Code Red" — Quick Start Installer (Linux / macOS)
 # ═══════════════════════════════════════════════════════════
 #  Usage:
 #    bash setup.sh              # install + launch
 #    bash setup.sh --no-run     # install only, don't launch
 #    bash setup.sh --reinstall  # recreate .venv from scratch
+#    bash setup.sh --channel=dev  # clone the dev branch (default: stable = main)
 #
 #  curl | bash is also supported — the repo is cloned
 #  automatically when requirements.txt is not found.
@@ -19,16 +20,25 @@ MIN_PY_MINOR=12
 
 NO_RUN=0
 REINSTALL=0
+CHANNEL="stable"
 for arg in "$@"; do
     case "$arg" in
         --no-run)    NO_RUN=1 ;;
         --reinstall) REINSTALL=1 ;;
+        --channel=*) CHANNEL="${arg#--channel=}" ;;
         -h|--help)
-            sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
     esac
 done
+
+# ── Release channel: stable → main, dev → dev branch ─────
+case "$CHANNEL" in
+    stable) BRANCH="main" ;;
+    dev)    BRANCH="dev" ;;
+    *) echo "  ERROR: --channel must be 'stable' or 'dev'" >&2; exit 1 ;;
+esac
 
 # ── Auto-clone if run outside the repo (curl | bash) ────
 if [ ! -f "requirements.txt" ]; then
@@ -39,7 +49,7 @@ if [ ! -f "requirements.txt" ]; then
         echo "    git clone $REPO && cd dosping && bash setup.sh" >&2
         exit 1
     }
-    git clone --depth 1 "$REPO" dosping
+    git clone --depth 1 --branch "$BRANCH" "$REPO" dosping
     cd dosping
 fi
 
@@ -77,7 +87,7 @@ spin() {
 
 echo ""
 echo -e "  ${BOLD}════════════════════════════════════════${RESET}"
-echo -e "  ${BOLD}${AMBER} DOSping 3.7.1 “Code Red” — Quick Start Installer${RESET}"
+echo -e "  ${BOLD}${AMBER} DOSping 3.8.0 “Code Red” — Quick Start Installer${RESET}"
 echo -e "  ${BOLD}════════════════════════════════════════${RESET}"
 echo ""
 echo -e "  ${DIM}For penetration testing / education only.${RESET}"
