@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DOSping 3.7.1 “Code Red” — Documentation</title>
+        <title>DOSping 3.8.0 “Code Red” — Documentation</title>
         <meta
             name="description"
             content="DOSping network stress testing TUI. Complete documentation covering every feature, command, and configuration option."
@@ -409,7 +409,7 @@
                         >ing <span class="bright">│</span>
                         <span class="bright">└──────────────┘</span>
                     </div>
-                    <div class="logo-ver">3.7.1 “Code Red” docs</div>
+                    <div class="logo-ver">3.8.0 “Code Red” docs</div>
                 </div>
 
                 <span class="section-label">start</span>
@@ -444,6 +444,7 @@
                 <a href="#export">log export</a>
                 <a href="#logging">event log</a>
                 <a href="#themes">themes</a>
+                <a href="#updates">auto-updating</a>
                 <a href="#terminal">terminal</a>
 
                 <span class="section-label">engine</span>
@@ -841,7 +842,7 @@ dosping            # or: python dosping.py</code></pre>
                 <h3>Layout</h3>
                 <div class="diagram">
                     ┌─────────────────────────────────────────────────┐ │
-                    DOSPING 3.7.1                                       │ ← header
+                    DOSPING 3.8.0                                       │ ← header
                     ├─────────────────────────────────────────────────┤ │ │ │
                     ┌──────────────────┐ ┌──────────────────┐ │ │ │ PORT SCANNER
                     │ │ ATTACKER │ │ ← tiles │ │ (radar art) │ │ (flame art) │ │
@@ -889,7 +890,7 @@ dosping            # or: python dosping.py</code></pre>
 
                 <h3>Header</h3>
                 <p>
-                    The header text <code>DOSPING 3.7.1</code> is a clean static
+                    The header text <code>DOSPING 3.8.0</code> is a clean static
                     title (the earlier glitch animation rendered unreliably across
                     terminal fonts and was removed in 3.7.0). The animated
                     character effects remain on the splash screen and the
@@ -2236,6 +2237,103 @@ CONNECTIVITY LOG:
                     <code>theme.py</code>, not a rewrite.
                 </p>
 
+                <h2 id="updates">Auto-Updating</h2>
+
+                <p>
+                    DOSping can check GitHub for a newer version and update itself
+                    in place with <code>git pull</code>. An update never restarts
+                    the app: restart DOSping yourself after it finishes.
+                </p>
+
+                <h3>Update channels</h3>
+                <table>
+                    <tr>
+                        <th>Channel</th>
+                        <th>Tracks</th>
+                        <th>What you get</th>
+                    </tr>
+                    <tr>
+                        <td><code>stable</code> (default)</td>
+                        <td><code>main</code> branch</td>
+                        <td>Tagged releases.</td>
+                    </tr>
+                    <tr>
+                        <td><code>dev</code></td>
+                        <td><code>dev</code> branch</td>
+                        <td>Every commit, untagged, bleeding edge. May break.</td>
+                    </tr>
+                </table>
+
+                <h3>Checking for updates</h3>
+                <ul>
+                    <li>
+                        <strong>Manually</strong> — Settings → Advanced → Updates
+                        → <em>Check Now</em>, or the command palette (<code>Ctrl+P</code>)
+                        → <em>Check for Updates</em>.
+                    </li>
+                    <li>
+                        <strong>Automatically</strong> — a non-blocking check runs on
+                        every launch. It only reports that an update exists; it never
+                        applies one. Startup checks fail silently. Turn this off with
+                        <em>Auto-Check on Launch</em>.
+                    </li>
+                </ul>
+
+                <h3>Applying an update</h3>
+                <p>
+                    <em>Update Now</em> asks for confirmation, then runs:
+                </p>
+                <ul>
+                    <li><code>git fetch origin &lt;branch&gt;</code> and <code>git checkout &lt;branch&gt;</code>, so a channel switch takes effect.</li>
+                    <li><code>git pull --ff-only origin &lt;branch&gt;</code>, fast-forward only. It never creates a merge commit.</li>
+                    <li><code>pip install -e .</code>, which picks up new dependencies.</li>
+                </ul>
+                <p>
+                    It refuses to run while <strong>tracked</strong> files have local
+                    changes, so hand edits are never overwritten. Untracked files
+                    (your own notes, for example) do not block it.
+                </p>
+
+                <h3>Update settings</h3>
+                <table>
+                    <tr>
+                        <th>Key</th>
+                        <th>Type</th>
+                        <th>Default</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td><code>advanced.update.channel</code></td>
+                        <td>string</td>
+                        <td><code>"stable"</code></td>
+                        <td><code>stable</code> or <code>dev</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>advanced.update.auto_check</code></td>
+                        <td>bool</td>
+                        <td><code>true</code></td>
+                        <td>Check GitHub on every launch.</td>
+                    </tr>
+                    <tr>
+                        <td><code>advanced.update.last_checked</code></td>
+                        <td>string</td>
+                        <td><code>""</code></td>
+                        <td>ISO timestamp of the last check.</td>
+                    </tr>
+                    <tr>
+                        <td><code>advanced.update.last_check_status</code></td>
+                        <td>string</td>
+                        <td><code>""</code></td>
+                        <td><code>up_to_date</code>, <code>update_available</code>, or <code>error</code>.</td>
+                    </tr>
+                </table>
+
+                <p>
+                    To install from the dev channel, run
+                    <code>bash setup.sh --channel=dev</code> (or
+                    <code>setup.bat --channel=dev</code>). The default is stable.
+                </p>
+
                 <h2 id="terminal">Terminal Launcher</h2>
 
                 <p>
@@ -2523,6 +2621,35 @@ CONNECTIVITY LOG:
                         </td>
                     </tr>
                     <tr>
+                        <td><code>updater.py</code></td>
+                        <td>
+                            Update checker and applier. Channel-based (stable =
+                            <code>main</code>, dev = <code>dev</code>). UI-agnostic:
+                            git and GitHub calls, no config access.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>AGENTS.md</code></td>
+                        <td>
+                            Guide for coding agents: commands, file map, conventions,
+                            branches and channels.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>pyproject.toml</code></td>
+                        <td>
+                            Package metadata, version, dependencies, and the
+                            <code>dosping</code> entry point.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>tests/</code></td>
+                        <td>
+                            pytest suite covering engines, config, persistence, event
+                            log, and updater logic.
+                        </td>
+                    </tr>
+                    <tr>
                         <td><code>settings.py</code></td>
                         <td>
                             Standalone settings TUI (<code>python
@@ -2630,6 +2757,32 @@ CONNECTIVITY LOG:
                         <th>Version</th>
                         <th>Date</th>
                         <th>Changes</th>
+                    </tr>
+                    <tr>
+                        <td><strong>3.8.0 “Code Red”</strong></td>
+                        <td>2026-10-15</td>
+                        <td>
+                            <ul>
+                                <li>
+                                    <strong>Auto-updating</strong> — new <em>Advanced → Updates</em> section with a stable / dev channel picker, <em>Check Now</em>, <em>Update Now</em> (confirmation-protected), and an auto-check toggle. The command palette gains <em>Check for Updates</em>, and DOSping checks once on launch without blocking the UI.
+                                </li>
+                                <li>
+                                    <strong>updater.py</strong> — UI-agnostic check and apply logic. Apply refuses a dirty tree, fetches and checks out the channel branch, fast-forward pulls, and reinstalls the package.
+                                </li>
+                                <li>
+                                    <strong>Channels</strong> — <code>main</code> is stable; the new <code>dev</code> branch tracks ongoing work. New <code>advanced.update</code> config section with automatic migration.
+                                </li>
+                                <li>
+                                    <strong>Installers</strong> — <code>setup.sh</code> and <code>setup.bat</code> accept <code>--channel=stable|dev</code> when they clone the repo.
+                                </li>
+                                <li>
+                                    <strong>Agents &amp; docs</strong> — new <code>AGENTS.md</code> for coding agents; this page documents auto-updating and the files above.
+                                </li>
+                                <li>
+                                    Update checks and results are written to the event log (<code>update</code> category).
+                                </li>
+                            </ul>
+                        </td>
                     </tr>
                     <tr>
                         <td><strong>3.7.1 “Code Red”</strong></td>
