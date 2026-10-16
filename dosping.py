@@ -81,6 +81,7 @@ from flooder import Flooder
 from scanner import NetworkScanEngine, PortScannerEngine, ScanResult, parse_port_spec
 
 import eventlog
+import updater
 
 from config import (
     BUILTIN_PRESETS,
@@ -4081,6 +4082,11 @@ class DOSPingCommandProvider(Provider):
                 self._show_cheat_sheet,
             ),
             (
+                "Check for Updates",
+                "Query GitHub for a newer version on the current channel",
+                self._check_updates,
+            ),
+            (
                 "New Test",
                 "Start a new test in a new tab (Ctrl+N)",
                 self._new_test,
@@ -4186,6 +4192,9 @@ class DOSPingCommandProvider(Provider):
 
     async def _show_cheat_sheet(self) -> None:
         self.app.action_show_cheat_sheet()
+
+    async def _check_updates(self) -> None:
+        self.app.run_worker(self.app._auto_check_updates(manual=True))
 
     async def _new_test(self) -> None:
         s = self._get_session()
@@ -4463,6 +4472,53 @@ class DOSPingApp(App):
         restyles live when the theme changes."""
         return {**super().get_css_variables(), **css_vars()}
 
+    async def _auto_check_updates(self, manual: bool = False) -> None:
+        """Check GitHub for a newer version (v3.8.0).
+
+        Never raises: an unexpected failure is logged, and only a manual
+        check reports it to the user.
+        """
+        try:
+            await self._run_update_check(manual=manual)
+        except Exception as exc:
+            eventlog.log_error("update", "update.check", exc)
+            if manual:
+                self.notify(f"Update check failed: {exc}", severity="error")
+
+    async def _run_update_check(self, manual: bool = False) -> None:
+        cfg = get_config()
+        if not manual and not cfg.get("advanced.update.auto_check", True):
+            return
+        channel = cfg.get("advanced.update.channel", "stable")
+        # The GitHub call runs in a worker thread so the UI never blocks.
+        result = await asyncio.to_thread(
+            updater.check_for_update, updater.repo_dir(), channel, APP_VERSION,
+        )
+        status = "error" if result.error else (
+            "update_available" if result.update_available else "up_to_date"
+        )
+        cfg.set("advanced.update.last_checked", datetime.now().isoformat(timespec="seconds"))
+        cfg.set("advanced.update.last_check_status", status)
+        cfg.save()
+        eventlog.log_event(
+            "update", "update.check_result", channel=channel,
+            current_version=APP_VERSION, remote_version=result.remote_version or "",
+            available=result.update_available, error=result.error or "",
+            source=f"UI:{'manual' if manual else 'startup'}",
+        )
+        if result.error:
+            # Startup checks stay silent on failure (no toast, no interruption).
+            if manual:
+                self.notify(f"Update check failed: {result.error}", severity="error")
+            return
+        if result.update_available and (manual or cfg.get("advanced.toasts", True)):
+            self.notify(
+                f"Update available: {result.remote_version} — see Settings → Advanced → Updates",
+                severity="warning",
+            )
+        elif manual:
+            self.notify("Already up to date")
+
     def on_mount(self) -> None:
         # Route asyncio task exceptions into the event log (v3.7.1).
         try:
@@ -4494,6 +4550,7 @@ class DOSPingApp(App):
             terminal=f"{self.app.size.width}x{self.app.size.height}",
         )
         self.push_screen(SplashScreen())
+        self.run_worker(self._auto_check_updates())
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -186,3 +186,17 @@ def test_apply_reports_new_version(monkeypatch, tmp_path):
     assert result.success is True
     assert result.new_version == "3.8.1"
     assert result.error is None
+
+
+def test_auto_check_swallows_errors_at_library_level(monkeypatch, tmp_path):
+    # DOSPingApp._auto_check_updates relies on check_for_update never
+    # raising, so a timeout must come back as result.error, not an exception.
+    monkeypatch.setattr(updater, "is_git_checkout", lambda p: True)
+    monkeypatch.setattr(updater, "_local_commit_sha", lambda p: "abc123")
+
+    def timeout(*a, **k):
+        raise requests.Timeout()
+
+    monkeypatch.setattr(requests, "get", timeout)
+    result = updater.check_for_update(str(tmp_path), "stable", "3.8.0")
+    assert result.error is not None
