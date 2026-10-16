@@ -60,6 +60,10 @@ LOG_RETENTION_CHOICES = (0, 1, 7, 14, 30, 90)   # days; 0 = never delete
 LOG_MAX_TOTAL_CHOICES = (0, 10, 25, 50, 100, 250)  # MB; 0 = unlimited
 LOG_MAX_FILE_MIN, LOG_MAX_FILE_MAX = 1, 50      # per-file MB cap
 
+# Auto-update (advanced.update) choices — v3.8.0
+UPDATE_CHANNELS = ("stable", "dev")          # stable → main, dev → dev branch
+UPDATE_STATUSES = ("", "up_to_date", "update_available", "error")
+
 BUILTIN_PRESET_NAMES = ("Low", "Medium", "High")
 DEFAULT_PRESET = "Medium"
 
@@ -222,6 +226,13 @@ def _default_config() -> dict[str, Any]:
                 "max_total_mb": 50,     # logs/ folder cap; 0=unlimited
                 "max_file_mb": 5,       # per-file cap 1–50
             },
+            # ── Auto-update (v3.8.0) ──────────────────────
+            "update": {
+                "channel": "stable",          # stable | dev
+                "auto_check": True,           # check GitHub on launch (never auto-applies)
+                "last_checked": "",           # ISO timestamp of the last check
+                "last_check_status": "",      # up_to_date | update_available | error
+            },
             # ── Sessions ──────────────────────────────────
             "max_tabs": 4,              # concurrent session tabs (1–8)
             "auto_start_session": True, # session modal opens immediately
@@ -332,6 +343,19 @@ def _migrate(data: Any, notes: Optional[list[str]] = None) -> dict[str, Any]:
     lg["max_file_mb"] = clamp_int(
         lg["max_file_mb"], LOG_MAX_FILE_MIN, LOG_MAX_FILE_MAX, 5
     )
+
+    # ── Advanced · Update (v3.8.0) ───────────────────────────
+    up = adv["update"]
+    if not isinstance(up, dict):  # hand-edited garbage → defaults
+        up = adv["update"] = _default_config()["advanced"]["update"]
+    if up["channel"] not in UPDATE_CHANNELS:
+        up["channel"] = "stable"
+    up["auto_check"] = bool(up["auto_check"])
+    up["last_checked"] = (
+        "" if up["last_checked"] is None else str(up["last_checked"])
+    )
+    if up["last_check_status"] not in UPDATE_STATUSES:
+        up["last_check_status"] = ""
 
     return base
 

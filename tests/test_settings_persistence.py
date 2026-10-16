@@ -60,6 +60,46 @@ def test_migration_clamps_bad_values(tmp_path):
     assert lg["max_file_mb"] == 50
 
 
+def test_default_update_schema():
+    d = C._default_config()
+    upd = d["advanced"]["update"]
+    assert upd == {
+        "channel": "stable",
+        "auto_check": True,
+        "last_checked": "",
+        "last_check_status": "",
+    }
+
+
+def test_migration_adds_update_section(tmp_path):
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps({"theme": {"name": "monochrome"}}))
+    cfg = C.Config(str(cfg_path))
+    upd = cfg.get("advanced.update")
+    assert upd["channel"] == "stable"
+    assert upd["auto_check"] is True
+
+
+def test_migration_clamps_bad_update_channel(tmp_path):
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps({
+        "advanced": {"update": {"channel": "nightly", "auto_check": "yes"}}
+    }))
+    cfg = C.Config(str(cfg_path))
+    assert cfg.get("advanced.update.channel") == "stable"
+    assert cfg.get("advanced.update.auto_check") is True
+
+
+def test_migration_recovers_from_garbage_update_section(tmp_path):
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps({"advanced": {"update": "garbage"}}))
+    cfg = C.Config(str(cfg_path))
+    upd = cfg.get("advanced.update")
+    assert isinstance(upd, dict)
+    assert upd["channel"] == "stable"
+    assert upd["last_check_status"] == ""
+
+
 def test_version_bumped():
     assert C.APP_VERSION == "3.7.1"
     assert C.APP_CODENAME == "Code Red"
