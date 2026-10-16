@@ -19,11 +19,21 @@ if /i "%1"=="-h"          goto :usage
 if /i "%1"=="--help"      goto :usage
 
 :: ── Release channel: stable = main, dev = dev branch ──────
-set "ARG1=%~1"
-set "ARG2=%~2"
+rem cmd splits "--channel=dev" into two arguments (--channel and dev),
+rem so scan the arguments and read the token that follows --channel.
 set "CHANNEL=stable"
-if /i "!ARG1:~0,10!"=="--channel=" set "CHANNEL=!ARG1:~10!"
-if /i "!ARG2:~0,10!"=="--channel=" set "CHANNEL=!ARG2:~10!"
+set "WANT_CHANNEL="
+for %%A in (%*) do (
+    if defined WANT_CHANNEL (
+        set "CHANNEL=%%~A"
+        set "WANT_CHANNEL="
+    )
+    if /i "%%~A"=="--channel" set "WANT_CHANNEL=1"
+)
+if defined WANT_CHANNEL (
+    echo ERROR: --channel needs a value: stable or dev.
+    exit /b 1
+)
 if /i not "!CHANNEL!"=="stable" if /i not "!CHANNEL!"=="dev" (
     echo ERROR: --channel must be 'stable' or 'dev'.
     exit /b 1
