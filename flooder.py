@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════
 #  flooder.py  —  Async TCP Flood Engine
 # ═══════════════════════════════════════════════════════════════
-#  Part of DOSping 3.7.1  —  Network Stress Testing TUI
+#  Part of DOSping 2.1.0  —  Network Stress Testing TUI
 #
 #  This module handles concurrent TCP connection flooding.
 #  Decoupled from the UI so any front-end can drive it.

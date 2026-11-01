@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion
-title DOSping 3.7.1 Setup
+title DOSping 2.1.0 Setup
 
 :: ═══════════════════════════════════════════════════════════
-::  DOSping 3.7.1 "Code Red" — Quick Start Installer (Windows)
+::  DOSping 2.1.0 "juice" — Quick Start Installer (Windows)
 :: ═══════════════════════════════════════════════════════════
 ::  Usage:
 ::    setup.bat              install + launch
@@ -59,7 +59,7 @@ if not exist requirements.txt (
 :: ── Header ─────────────────────────────────────────────────
 cls
 echo.
-echo   !BLD!!AMB!DOSping 3.7.1 "Code Red"!RST!   !DIM!Network Stress Tester!RST!
+echo   !BLD!!AMB!DOSping 2.1.0 "juice"!RST!   !DIM!Network Stress Tester!RST!
 echo   !DIM!────────────────────────────────────────────!RST!
 echo   !DIM!For penetration testing / education only.!RST!
 echo   !DIM!Use at your own risk.!RST!
@@ -212,7 +212,7 @@ pause >nul
 exit /b 0
 
 :usage
-echo DOSping 3.7.1 "Code Red" setup
+echo DOSping 2.1.0 "juice" setup
 echo.
 echo Usage: setup.bat [option]
 echo   --no-run     install only, don't launch

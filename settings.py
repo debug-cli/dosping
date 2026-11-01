@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  settings.py  —  DOSping v3.7.1 "Code Red" Settings Editor
+#  settings.py  —  DOSping v2.1.0 "juice" Settings Editor
 # ═══════════════════════════════════════════════════════════════
 #  Run directly:   python settings.py
 #  In-app:         Settings modal → Advanced → "Open…"
@@ -1136,7 +1136,7 @@ class SettingsScreen(Screen):
             data["advanced.timestamped_logs"] = self._live_opt_value(
                 "adv-timestamped", "advanced.timestamped_logs", False
             )
-            # ── Event log (advanced.logging, v3.7.1) ─────────
+            # ── Event log (advanced.logging, v2.1.0) ─────────
             data["advanced.logging.enabled"] = self._live_opt_value(
                 "adv-log-enabled", "advanced.logging.enabled", True
             )

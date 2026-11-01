@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  eventlog.py  —  DOSping 3.7.1 "Code Red" Event Logger
+#  eventlog.py  —  DOSping 2.1.0 "juice" Event Logger
 # ═══════════════════════════════════════════════════════════════
 #  Queue-backed structured event log for DOSping.
 #

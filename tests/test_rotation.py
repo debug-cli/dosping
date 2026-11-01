@@ -33,7 +33,7 @@ def test_daily_rotation_on_date_change(tmp_path, monkeypatch):
     eventlog.shutdown()
     monkeypatch.setattr(eventlog, "_state", eventlog._State(), raising=False)
     cfg = FakeConfig(str(tmp_path))
-    eventlog.init(cfg, version="3.7.1", codename="Code Red")
+    eventlog.init(cfg, version="2.1.0", codename="juice")
 
     handler = eventlog._state.handler
     today = datetime.date.today()
@@ -52,7 +52,7 @@ def test_daily_rotation_on_date_change(tmp_path, monkeypatch):
     assert os.path.exists(old_file)
 
     # Re-init and write on today's date -> new file, old one untouched.
-    eventlog.init(cfg, version="3.7.1", codename="Code Red")
+    eventlog.init(cfg, version="2.1.0", codename="juice")
     eventlog.log_event("app", "app.new_day")
     eventlog.shutdown()
 

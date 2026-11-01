@@ -120,7 +120,7 @@ The **Logging** section now controls the on-disk event log too: **Log To Disk** 
 
 ### Event log
 
-DOSping 3.7.1 keeps a structured event log next to `config.json`:
+DOSping 2.1.0 keeps a structured event log next to `config.json`:
 
 - **Location** — `logs/dosping-YYYY-MM-DD.log` (daily files, size-rotated with a `.N` suffix past 5 MB).
 - **Format** — one plain-text event per line:
@@ -187,6 +187,20 @@ You can also save the current values as a **custom preset** (`✚ Save Custom Fr
 | `q` | Quit |
 
 Every screen shows the shortcuts available in its context in the bar at the bottom.
+
+---
+
+## Changelog
+
+### v2.1.0 "juice" — introduced 2026-11-01
+- Version set to **2.1.0**, codename **"juice"** (`APP_VERSION` / `APP_CODENAME` in `config.py`), replacing 3.7.1 "Code Red"
+- Version shown in the settings menu (About panel, window sub-title, footer) and in the debug log header (`# DOSping 2.1.0 "juice" log opened`, `app.start version=2.1.0`)
+- Version updated in `pyproject.toml`, `docs/index.html`, both installers (`setup.sh`, `setup.bat`), and all module headers
+- Tests updated to assert `APP_VERSION == "2.1.0"` and `APP_CODENAME == "juice"`
+- Changelog discipline: every README.md changelog entry must state the date the version was introduced — requirement added to `AGENTS.md`
+
+### v2.0.0 — introduced 2026-08-01
+- v2.x baseline: settings editor (`settings.py`), `config.json` with strength presets, flood/scan TUI, structured event log
 
 ---
 

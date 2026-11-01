@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DOSping 3.7.1 “Code Red” — Documentation</title>
+        <title>DOSping 2.1.0 “juice” — Documentation</title>
         <meta
             name="description"
             content="DOSping network stress testing TUI. Complete documentation covering every feature, command, and configuration option."
@@ -409,7 +409,7 @@
                         >ing <span class="bright">│</span>
                         <span class="bright">└──────────────┘</span>
                     </div>
-                    <div class="logo-ver">3.7.1 “Code Red” docs</div>
+                    <div class="logo-ver">2.1.0 “juice” docs</div>
                 </div>
 
                 <span class="section-label">start</span>
@@ -650,7 +650,7 @@ dosping            # or: python dosping.py</code></pre>
                         </td>
                     </tr>
                     <tr>
-                        <td><code>eventlog.py</code> <em>(3.7.1)</em></td>
+                        <td><code>eventlog.py</code> <em>(2.1.0)</em></td>
                         <td>~470</td>
                         <td>
                             Queue-backed event logger: plain-text
@@ -841,7 +841,7 @@ dosping            # or: python dosping.py</code></pre>
                 <h3>Layout</h3>
                 <div class="diagram">
                     ┌─────────────────────────────────────────────────┐ │
-                    DOSPING 3.7.1                                       │ ← header
+                    DOSPING 2.1.0                                       │ ← header
                     ├─────────────────────────────────────────────────┤ │ │ │
                     ┌──────────────────┐ ┌──────────────────┐ │ │ │ PORT SCANNER
                     │ │ ATTACKER │ │ ← tiles │ │ (radar art) │ │ (flame art) │ │
@@ -889,7 +889,7 @@ dosping            # or: python dosping.py</code></pre>
 
                 <h3>Header</h3>
                 <p>
-                    The header text <code>DOSPING 3.7.1</code> is a clean static
+                    The header text <code>DOSPING 2.1.0</code> is a clean static
                     title (the earlier glitch animation rendered unreliably across
                     terminal fonts and was removed in 3.7.0). The animated
                     character effects remain on the splash screen and the
@@ -1029,7 +1029,7 @@ dosping            # or: python dosping.py</code></pre>
                             <code>timestamped_logs</code>,
                             <code>conn_delay_ms</code>,
                             <code>reuse_payload</code>,
-                            <code>logging</code> <em>(3.7.1: <code>enabled</code>,
+                            <code>logging</code> <em>(2.1.0: <code>enabled</code>,
                             <code>level</code> minimal/normal/verbose/debug,
                             <code>retention_days</code>,
                             <code>max_total_mb</code>,
@@ -1044,7 +1044,7 @@ dosping            # or: python dosping.py</code></pre>
                 <h3>Advanced Settings, toasts &amp; confirmations</h3>
                 <p>
                     3.7.0 splits settings into <strong>Basic</strong> and
-                    <strong>Advanced</strong> views; 3.7.1 extends the Advanced
+                    <strong>Advanced</strong> views; 2.1.0 extends the Advanced
                     <em>Logging</em> section with on-disk event-log controls (see
                     <a href="#logging">Event Log</a>). Open Advanced from the
                     Settings modal (<code>⚙ Advanced → Open…</code>) or with
@@ -1951,7 +1951,7 @@ CONNECTIVITY LOG:
                 <h2 id="logging">Event Log</h2>
 
                 <p>
-                    New in <strong>3.7.1</strong>: DOSping keeps a structured
+                    New in <strong>2.1.0</strong>: DOSping keeps a structured
                     <strong>event log</strong> on disk — a verbose, grep-friendly
                     audit trail of everything the app and its engines do, kept
                     next to <code>config.json</code>.
@@ -2016,7 +2016,7 @@ CONNECTIVITY LOG:
                 </table>
 
                 <h3>Example lines</h3>
-                <pre><code>[2026-09-14 21:04:11.482] [INFO ] [app] [-] app.start version=3.7.1 python=3.12.7 os=Windows-11 terminal=120x38
+                <pre><code>[2026-09-14 21:04:11.482] [INFO ] [app] [-] app.start version=2.1.0 python=3.12.7 os=Windows-11 terminal=120x38
 [2026-09-14 21:04:11.517] [INFO ] [config] [-] config.load path=config.json changed_keys=0
 [2026-09-14 21:04:29.130] [INFO ] [session] [tab-1] session.tab_opened kind=test target=203.0.113.7 ports=80,443 bots=200
 [2026-09-14 21:04:29.140] [INFO ] [flood] [tab-1] flood.workers_spawned bots=200 concurrency=200 packet_size=512B reuse_payload=true ports=80,443
@@ -2514,7 +2514,7 @@ CONNECTIVITY LOG:
                         </td>
                     </tr>
                     <tr>
-                        <td><code>eventlog.py</code> <em>(3.7.1)</em></td>
+                        <td><code>eventlog.py</code> <em>(2.1.0)</em></td>
                         <td>
                             Queue-backed event logger — structured plain-text
                             lines to <code>logs/dosping-YYYY-MM-DD.log</code>,
@@ -2632,7 +2632,7 @@ CONNECTIVITY LOG:
                         <th>Changes</th>
                     </tr>
                     <tr>
-                        <td><strong>3.7.1 “Code Red”</strong></td>
+                        <td><strong>2.1.0 “juice”</strong></td>
                         <td>2026-09-14</td>
                         <td>
                             <ul>
@@ -2652,13 +2652,13 @@ CONNECTIVITY LOG:
                                     <strong>Docs</strong> — new <a href="#logging">Event Log</a> section documenting exactly how the logs are built (line format, fields, levels, rotation, retention).
                                 </li>
                                 <li>
-                                    Version strings unified to 3.7.1 across the app, pyproject.toml, docs, README and both installers.
+                                    Version strings unified to 2.1.0 across the app, pyproject.toml, docs, README and both installers.
                                 </li>
                             </ul>
                         </td>
                     </tr>
                     <tr>
-                        <td><strong>3.7.0 “Code Red”</strong></td>
+                        <td><strong>3.7.0 “juice”</strong></td>
                         <td>2026-09-13</td>
                         <td>
                             <ul>
@@ -2678,7 +2678,7 @@ CONNECTIVITY LOG:
                                     <strong>Toasts &amp; confirmations</strong> — every setting change pops a confirmation toast; dangerous actions (Factory Reset, Reset Advanced, delete preset, disabling the private-target guard) raise a Yes/No confirmation dialog first. Toasts and guards can themselves be configured.
                                 </li>
                                 <li>
-                                    <strong>About panel</strong> — the Advanced view shows the version (3.7.0 “Code Red”), repo + docs links, framework info and the config path, plus the disclaimer in subtle grey text.
+                                    <strong>About panel</strong> — the Advanced view shows the version (3.7.0 “juice”), repo + docs links, framework info and the config path, plus the disclaimer in subtle grey text.
                                 </li>
                                 <li>
                                     <strong>Engine wiring</strong> — Flooder honours <code>conn_delay</code> and <code>reuse_payload</code>; scanner honours <code>banner_grab</code>; GeoIP panel honours <code>geoip_lookup</code>/<code>geoip_timeout</code>; session tabs respect <code>max_tabs</code>; SessionScreen auto-open respects <code>auto_start_session</code>; attack setup refuses private/loopback targets when <code>block_private_targets</code> is on; flood log capped at <code>flood_log_lines</code>; logs optionally timestamped.

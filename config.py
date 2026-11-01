@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  config.py  —  DOSping 3.7.1 "Code Red" Configuration Layer
+#  config.py  —  DOSping 2.1.0 "juice" Configuration Layer
 # ═══════════════════════════════════════════════════════════════
 #  Loads and saves config.json next to dosping.py.  A missing or
 #  partially-invalid file is auto-repaired from defaults so the TUI
@@ -26,8 +26,8 @@ import threading
 from typing import Any, Optional
 
 APP_NAME = "DOSping"
-APP_VERSION = "3.7.1"
-APP_CODENAME = "Code Red"
+APP_VERSION = "2.1.0"
+APP_CODENAME = "juice"
 APP_REPO = "https://github.com/debug-cli/dosping"
 APP_DOCS = "https://dosping-docs.vercel.app"
 DISCLAIMER = (
@@ -54,7 +54,7 @@ CONN_DELAY_MIN, CONN_DELAY_MAX = 0.0, 2.0
 LOG_LINES_MIN, LOG_LINES_MAX = 100, 100000
 SOCK_TIMEOUT_MIN, SOCK_TIMEOUT_MAX = 0.5, 30.0
 
-# Event-log (advanced.logging) choices — v3.7.1
+# Event-log (advanced.logging) choices — v2.1.0
 LOG_LEVELS = ("minimal", "normal", "verbose", "debug")
 LOG_RETENTION_CHOICES = (0, 1, 7, 14, 30, 90)   # days; 0 = never delete
 LOG_MAX_TOTAL_CHOICES = (0, 10, 25, 50, 100, 250)  # MB; 0 = unlimited
@@ -315,7 +315,7 @@ def _migrate(data: Any, notes: Optional[list[str]] = None) -> dict[str, Any]:
     )
     adv["block_private_targets"] = bool(adv["block_private_targets"])
 
-    # ── Advanced · Logging (v3.7.1) ──────────────────────────
+    # ── Advanced · Logging (v2.1.0) ──────────────────────────
     lg = adv["logging"]
     if not isinstance(lg, dict):  # hand-edited garbage → defaults
         lg = adv["logging"] = base["advanced"]["logging"]

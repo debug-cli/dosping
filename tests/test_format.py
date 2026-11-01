@@ -48,7 +48,7 @@ def test_header_line(log_env):
     eventlog.log_event("app", "app.start")  # header written on first emit
     text = read_log()
     first = text.splitlines()[0]
-    assert first.startswith('# DOSping 3.7.1 "Code Red" log opened')
+    assert first.startswith('# DOSping 2.1.0 "juice" log opened')
     assert 'pid=' in first and 'level=normal' in first
 
 

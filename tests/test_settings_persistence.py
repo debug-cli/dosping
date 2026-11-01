@@ -61,15 +61,15 @@ def test_migration_clamps_bad_values(tmp_path):
 
 
 def test_version_bumped():
-    assert C.APP_VERSION == "3.7.1"
-    assert C.APP_CODENAME == "Code Red"
+    assert C.APP_VERSION == "2.1.0"
+    assert C.APP_CODENAME == "juice"
 
 
 def test_save_logs_changed_keys(tmp_path, monkeypatch):
     _fresh_state(monkeypatch)
     cfg_path = tmp_path / "config.json"
     cfg = C.Config(str(cfg_path))
-    eventlog.init(cfg, version="3.7.1", codename="Code Red")
+    eventlog.init(cfg, version="2.1.0", codename="juice")
 
     cfg.set("attacker.threads", 555)
     cfg.set("advanced.logging.level", "verbose")
@@ -92,7 +92,7 @@ def test_reset_all_logs_event(tmp_path, monkeypatch):
     _fresh_state(monkeypatch)
     cfg_path = tmp_path / "config.json"
     cfg = C.Config(str(cfg_path))
-    eventlog.init(cfg, version="3.7.1", codename="Code Red")
+    eventlog.init(cfg, version="2.1.0", codename="juice")
 
     cfg.reset_all()
     cfg.save()

@@ -49,7 +49,7 @@ def log_env(tmp_path, monkeypatch):
     monkeypatch.setattr(eventlog, "_state", eventlog._State(), raising=False)
 
     cfg = FakeConfig(str(tmp_path))
-    eventlog.init(cfg, version="3.7.1", codename="Code Red")
+    eventlog.init(cfg, version="2.1.0", codename="juice")
 
     import glob
 

@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  dosping.py  —  DOSping 3.7.1 "Code Red" Network Stress Testing TUI
+#  dosping.py  —  DOSping 2.1.0 "juice" Network Stress Testing TUI
 # ═══════════════════════════════════════════════════════════════
 #  Cross-platform Terminal UI for network stress testing with
 #  multi-tab sessions, live split-panel monitoring, command
@@ -740,7 +740,7 @@ class HomeHeader(Static):
 
     def _render_title(self) -> None:
         # THEME is read at render time, so live theme switches apply.
-        self.update(f"[bold {THEME['accent']}]DO|||>g  3.7.1[/]")
+        self.update(f"[bold {THEME['accent']}]DO|||>g  2.1.0[/]")
 
     def sync_enabled(self, enabled: bool) -> None:
         """Kept for the ascii-effects toggle (glitch removed)."""
@@ -4289,10 +4289,10 @@ class DOSPingCommandProvider(Provider):
 
 
 class DOSPingApp(App):
-    """DOSping 3.7.1 “Code Red” — Network Stress Testing TUI."""
+    """DOSping 2.1.0 “juice” — Network Stress Testing TUI."""
 
     TITLE = "DOSping"
-    SUB_TITLE = "Network Stress Tester 3.7.1 — Code Red"
+    SUB_TITLE = "Network Stress Tester 2.1.0 — juice"
 
     DARK = True
 
@@ -4464,7 +4464,7 @@ class DOSPingApp(App):
         return {**super().get_css_variables(), **css_vars()}
 
     def on_mount(self) -> None:
-        # Route asyncio task exceptions into the event log (v3.7.1).
+        # Route asyncio task exceptions into the event log (v2.1.0).
         try:
             loop = asyncio.get_running_loop()
 

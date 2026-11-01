@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#  scanner.py  —  DOSping 3.7.1 Async Port Scanner
+#  scanner.py  —  DOSping 2.1.0 Async Port Scanner
 # ═══════════════════════════════════════════════════════════════
 #  Pure Python TCP scanner for DOSping's Port Scanner mode.
 #  No nmap dependency. No administrator requirement.

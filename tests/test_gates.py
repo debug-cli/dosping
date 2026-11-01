@@ -13,7 +13,7 @@ def test_disabled_writes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(eventlog, "_state", eventlog._State(), raising=False)
     cfg = FakeConfig(str(tmp_path), logging={"enabled": False})
     cfg.path = os.path.join(str(tmp_path), "config.json")
-    eventlog.init(cfg, version="3.7.1", codename="Code Red")
+    eventlog.init(cfg, version="2.1.0", codename="juice")
 
     eventlog.log_event("app", "app.start")
     eventlog.log_error("app", "ctx", RuntimeError("boom"))
